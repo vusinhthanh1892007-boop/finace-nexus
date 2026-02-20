@@ -63,29 +63,29 @@ const REGION_MENUS: Record<RegionKey, { multiplier: number; breakfasts: MenuSeed
     vn: {
         multiplier: 1,
         breakfasts: [
-            { name: "Banh mi trung", unitCost: 20_000, description: "Egg bread" },
-            { name: "Pho bo", unitCost: 45_000, description: "Beef pho" },
-            { name: "Bun bo Hue", unitCost: 40_000, description: "Hue noodles" },
-            { name: "Xoi ga", unitCost: 25_000, description: "Sticky rice" },
-            { name: "Chao ga", unitCost: 25_000, description: "Chicken porridge" },
-            { name: "Banh cuon", unitCost: 30_000, description: "Rice rolls" },
-            { name: "Bun cha", unitCost: 40_000, description: "Grilled pork noodles" },
+            { name: "Bánh mì trứng", unitCost: 20_000, description: "Bữa sáng nhanh" },
+            { name: "Phở bò", unitCost: 45_000, description: "Phở bò truyền thống" },
+            { name: "Bún bò Huế", unitCost: 40_000, description: "Món bún đậm vị" },
+            { name: "Xôi gà", unitCost: 25_000, description: "Xôi gà nóng" },
+            { name: "Cháo gà", unitCost: 25_000, description: "Cháo gà nhẹ bụng" },
+            { name: "Bánh cuốn", unitCost: 30_000, description: "Bánh cuốn nóng" },
+            { name: "Bún chả", unitCost: 40_000, description: "Bún chả nướng" },
         ],
         lunches: [
-            { name: "Com tam suon", unitCost: 45_000, description: "Broken rice" },
-            { name: "Bun thit nuong", unitCost: 40_000, description: "Grilled meat noodles" },
-            { name: "Com ga xoi mo", unitCost: 45_000, description: "Crispy chicken rice" },
-            { name: "Mi Quang", unitCost: 35_000, description: "Quang noodles" },
-            { name: "Com van phong", unitCost: 35_000, description: "Office lunch" },
-            { name: "Hu tieu Nam Vang", unitCost: 40_000, description: "PP noodle soup" },
-            { name: "Bun rieu cua", unitCost: 35_000, description: "Crab noodle soup" },
+            { name: "Cơm tấm sườn", unitCost: 45_000, description: "Cơm tấm truyền thống" },
+            { name: "Bún thịt nướng", unitCost: 40_000, description: "Bún thịt nướng" },
+            { name: "Cơm gà xối mỡ", unitCost: 45_000, description: "Cơm gà giòn" },
+            { name: "Mì Quảng", unitCost: 35_000, description: "Mì Quảng đặc trưng" },
+            { name: "Cơm văn phòng", unitCost: 35_000, description: "Bữa trưa văn phòng" },
+            { name: "Hủ tiếu Nam Vang", unitCost: 40_000, description: "Hủ tiếu đậm đà" },
+            { name: "Bún riêu cua", unitCost: 35_000, description: "Bún riêu cua" },
         ],
         dinners: [
-            { name: "Com nha nau", cost: 150_000, description: "Fish, veggies, soup" },
-            { name: "Com nha nau", cost: 120_000, description: "Braised pork, greens" },
-            { name: "Com nha nau", cost: 180_000, description: "Grilled chicken, tofu" },
-            { name: "Com nha nau", cost: 130_000, description: "Eggs, stir-fry, soup" },
-            { name: "Com nha nau", cost: 160_000, description: "Steamed fish, beans" },
+            { name: "Cơm nhà nấu", cost: 150_000, description: "Cá, rau, canh" },
+            { name: "Cơm nhà nấu", cost: 120_000, description: "Thịt kho, rau luộc" },
+            { name: "Cơm nhà nấu", cost: 180_000, description: "Gà nướng, đậu hũ" },
+            { name: "Cơm nhà nấu", cost: 130_000, description: "Trứng, rau xào, canh" },
+            { name: "Cơm nhà nấu", cost: 160_000, description: "Cá hấp, đậu que" },
         ],
     },
     us: {
@@ -150,7 +150,7 @@ const REGION_MENUS: Record<RegionKey, { multiplier: number; breakfasts: MenuSeed
 const WEEKDAYS_BY_LOCALE = {
     vi: ["T2", "T3", "T4", "T5", "T6", "T7", "CN"],
     en: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-    es: ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"],
+    es: ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"],
 } as const;
 
 function normalizeLocationText(value?: string) {
@@ -241,10 +241,10 @@ function buildAllocation(investable: number, locale: string): AssetAllocation[] 
 
     if (locale === "vi") {
         return [
-            { category: "Co phieu / ETF", percentage: 35, amount: investable * 0.35, rationale: "Tang truong theo chi so thi truong lon" },
-            { category: "Vang", percentage: 20, amount: investable * 0.2, rationale: "Phong ho lam phat" },
-            { category: "Tiet kiem", percentage: 30, amount: investable * 0.3, rationale: "Quy du phong an toan" },
-            { category: "Trai phieu", percentage: 15, amount: investable * 0.15, rationale: "Dong tien on dinh" },
+            { category: "Cổ phiếu / ETF", percentage: 35, amount: investable * 0.35, rationale: "Tăng trưởng theo chỉ số thị trường lớn" },
+            { category: "Vàng", percentage: 20, amount: investable * 0.2, rationale: "Phòng hộ lạm phát" },
+            { category: "Tiết kiệm", percentage: 30, amount: investable * 0.3, rationale: "Quỹ dự phòng an toàn" },
+            { category: "Trái phiếu", percentage: 15, amount: investable * 0.15, rationale: "Dòng tiền ổn định" },
         ];
     }
     if (locale === "es") {
@@ -267,9 +267,9 @@ function buildAllocation(investable: number, locale: string): AssetAllocation[] 
 function buildAdvice(locale: string, savingsRate: number): string[] {
     if (locale === "vi") {
         return [
-            savingsRate < 20 ? "Tang ty le tiet kiem len it nhat 20% thu nhap" : "Ty le tiet kiem rat tot!",
-            "Nau an tai nha de giam chi phi an uong 40-60%",
-            "Tranh mua sam cam tinh, doi 24h truoc khi mua do khong thiet yeu",
+            savingsRate < 20 ? "Tăng tỷ lệ tiết kiệm lên ít nhất 20% thu nhập." : "Tỷ lệ tiết kiệm rất tốt.",
+            "Nấu ăn tại nhà để giảm chi phí ăn uống 40-60%.",
+            "Tránh mua sắm cảm tính, đợi 24h trước khi mua đồ không thiết yếu.",
         ];
     }
     if (locale === "es") {

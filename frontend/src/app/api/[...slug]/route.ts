@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import countriesFallback from "@/data/countries-fallback.json";
 
 export const runtime = "nodejs";
-export const preferredRegion = "hkg1";
+export const preferredRegion = "auto";
 
 type RiskTolerance = "conservative" | "moderate" | "aggressive";
 type AIProvider = "auto" | "gemini" | "openai";
@@ -55,6 +56,11 @@ const RESTCOUNTRIES_FIELDS_URL =
 const COUNTRIES_BACKUP_URL = "https://raw.githubusercontent.com/mledoze/countries/master/countries.json";
 const DEFAULT_FETCH_TIMEOUT_MS = 7000;
 const MAX_DATA_CACHE_ITEMS = 1400;
+const DEFAULT_OUTBOUND_HEADERS = {
+    "User-Agent": "NexusFinance/1.0 (+https://github.com/vusinhthanh1892007-boop/finace-nexus)",
+    Accept: "application/json,text/plain,*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+};
 
 const DEFAULT_SETTINGS: SettingsState = {
     auto_balance: true,
@@ -116,6 +122,14 @@ function publicSettings(state: SettingsState) {
 
 function nowIso() {
     return new Date().toISOString();
+}
+
+function withDefaultHeaders(init?: RequestInit) {
+    const headers = new Headers(init?.headers);
+    if (!headers.has("User-Agent")) headers.set("User-Agent", DEFAULT_OUTBOUND_HEADERS["User-Agent"]);
+    if (!headers.has("Accept")) headers.set("Accept", DEFAULT_OUTBOUND_HEADERS.Accept);
+    if (!headers.has("Accept-Language")) headers.set("Accept-Language", DEFAULT_OUTBOUND_HEADERS["Accept-Language"]);
+    return { ...init, headers };
 }
 
 function normalizeSymbol(symbol: string) {
@@ -287,7 +301,8 @@ async function fetchJson(url: string, init?: RequestInit, timeoutMs = DEFAULT_FE
             ? AbortSignal.any([initSignal, controller.signal])
             : controller.signal;
 
-    const res = await fetch(url, { ...init, signal, cache: "no-store" }).finally(() => clearTimeout(timer));
+    const requestInit = withDefaultHeaders(init);
+    const res = await fetch(url, { ...requestInit, signal, cache: "no-store" }).finally(() => clearTimeout(timer));
     if (!res.ok) {
         throw new Error(`${res.status}`);
     }
@@ -303,7 +318,8 @@ async function fetchText(url: string, init?: RequestInit, timeoutMs = DEFAULT_FE
             ? AbortSignal.any([initSignal, controller.signal])
             : controller.signal;
 
-    const res = await fetch(url, { ...init, signal, cache: "no-store" }).finally(() => clearTimeout(timer));
+    const requestInit = withDefaultHeaders(init);
+    const res = await fetch(url, { ...requestInit, signal, cache: "no-store" }).finally(() => clearTimeout(timer));
     if (!res.ok) {
         throw new Error(`${res.status}`);
     }
@@ -348,11 +364,16 @@ async function getBinanceTicker(pair: string) {
 async function getStooqQuote(symbol: string) {
     const s = normalizeSymbol(symbol);
     const stooqSymbol = toStooqSymbol(s);
-    const rawText = await fetchText(
+    const stooqUrls = [
         `https://stooq.com/q/l/?s=${encodeURIComponent(stooqSymbol.toLowerCase())}&i=d`,
-        undefined,
-        5000,
-    );
+        `https://stooq.pl/q/l/?s=${encodeURIComponent(stooqSymbol.toLowerCase())}&i=d`,
+    ];
+    let rawText = "";
+    for (const url of stooqUrls) {
+        rawText = await fetchText(url, undefined, 5200).catch(() => "");
+        if (rawText && rawText.includes(",")) break;
+    }
+    if (!rawText) return null;
     const line = String(rawText || "").trim().split("\n")[0] || "";
     const cells = line.split(",");
     if (cells.length < 8) return null;
@@ -636,9 +657,9 @@ function getAdvisorRegionProfile(locationText: string, locale: string): AdvisorR
         countryCode: "VN",
         avgRestaurantMealVnd: 95000,
         avgHomeMealPerPersonVnd: 42000,
-        breakfasts: ["Pho bo", "Banh mi trung", "Xoi ga", "Bun bo Hue", "Chao ga"],
-        lunches: ["Com tam suon", "Bun thit nuong", "Mi Quang", "Bun rieu cua", "Com ga"],
-        dinners: ["Com nha nau", "Ca kho canh rau", "Ga nuong dau hu", "Bo xao rau", "Canh chua ca"],
+        breakfasts: ["Phở bò", "Bánh mì trứng", "Xôi gà", "Bún bò Huế", "Cháo gà"],
+        lunches: ["Cơm tấm sườn", "Bún thịt nướng", "Mì Quảng", "Bún riêu cua", "Cơm gà"],
+        dinners: ["Cơm nhà nấu", "Cá kho canh rau", "Gà nướng đậu hũ", "Bò xào rau", "Canh chua cá"],
         examples: ["WinMart", "Co.opmart", "Bach Hoa Xanh"],
     };
 }
@@ -663,7 +684,12 @@ function buildAdvisorFallback(input: Record<string, unknown>) {
     const healthScore = clampNumber(Math.round(70 + Math.min(20, savingsRate) - Math.max(0, utilization - 80) * 0.6), 1, 99);
     const healthStatus =
         healthScore >= 80 ? "excellent" : healthScore >= 60 ? "good" : healthScore >= 40 ? "needs_improvement" : "critical";
-    const days = locale === "vi" ? ["T2", "T3", "T4", "T5", "T6", "T7", "CN"] : locale === "es" ? ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"] : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const days =
+        locale === "vi"
+            ? ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+            : locale === "es"
+              ? ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+              : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     const seedBase = seededScore(`${location}|${income}|${actualExpenses}|${plannedBudget}|${familySize}|${locale}`);
     const mealPlan = days.map((day, idx) => {
         const basePerPerson = Math.round(region.avgHomeMealPerPersonVnd * (0.88 + ((seedBase + idx * 11) % 8) * 0.05));
@@ -673,19 +699,19 @@ function buildAdvisorFallback(input: Record<string, unknown>) {
         return {
             day,
             breakfast: {
-                name: pickBySeed(region.breakfasts, seedBase + idx * 17, locale === "vi" ? "Bua sang" : locale === "es" ? "Desayuno" : "Breakfast"),
+                name: pickBySeed(region.breakfasts, seedBase + idx * 17, locale === "vi" ? "Bữa sáng" : locale === "es" ? "Desayuno" : "Breakfast"),
                 cost: breakfast,
-                description: locale === "vi" ? "Khau phan uoc tinh theo khu vuc." : locale === "es" ? "Racion estimada por zona." : "Estimated serving by region.",
+                description: locale === "vi" ? "Khẩu phần ước tính theo khu vực." : locale === "es" ? "Ración estimada por zona." : "Estimated serving by region.",
             },
             lunch: {
-                name: pickBySeed(region.lunches, seedBase + idx * 23, locale === "vi" ? "Bua trua" : locale === "es" ? "Almuerzo" : "Lunch"),
+                name: pickBySeed(region.lunches, seedBase + idx * 23, locale === "vi" ? "Bữa trưa" : locale === "es" ? "Almuerzo" : "Lunch"),
                 cost: lunch,
-                description: locale === "vi" ? "Khau phan uoc tinh theo khu vuc." : locale === "es" ? "Racion estimada por zona." : "Estimated serving by region.",
+                description: locale === "vi" ? "Khẩu phần ước tính theo khu vực." : locale === "es" ? "Ración estimada por zona." : "Estimated serving by region.",
             },
             dinner: {
-                name: pickBySeed(region.dinners, seedBase + idx * 31, locale === "vi" ? "Bua toi" : locale === "es" ? "Cena" : "Dinner"),
+                name: pickBySeed(region.dinners, seedBase + idx * 31, locale === "vi" ? "Bữa tối" : locale === "es" ? "Cena" : "Dinner"),
                 cost: dinner,
-                description: locale === "vi" ? "Khau phan uoc tinh theo khu vuc." : locale === "es" ? "Racion estimada por zona." : "Estimated serving by region.",
+                description: locale === "vi" ? "Khẩu phần ước tính theo khu vực." : locale === "es" ? "Ración estimada por zona." : "Estimated serving by region.",
             },
             snack: null,
             total_cost: breakfast + lunch + dinner,
@@ -696,20 +722,20 @@ function buildAdvisorFallback(input: Record<string, unknown>) {
         health_status: healthStatus,
         guru_verdict:
             locale === "vi"
-                ? `Diem ${healthScore}/100. Ty le tiet kiem ${savingsRate.toFixed(1)}%.`
+                ? `Điểm ${healthScore}/100. Tỷ lệ tiết kiệm ${savingsRate.toFixed(1)}%.`
                 : locale === "es"
                   ? `Puntaje ${healthScore}/100. Ahorro ${savingsRate.toFixed(1)}%.`
                   : `Score ${healthScore}/100. Savings ${savingsRate.toFixed(1)}%.`,
         guru_advice: [
-            locale === "vi" ? "Giu chi tieu duoi ngan sach." : locale === "es" ? "Mantener gasto bajo presupuesto." : "Keep spending under budget.",
-            locale === "vi" ? "Tang ty le tiet kiem theo thang." : locale === "es" ? "Aumentar tasa de ahorro mensual." : "Increase monthly savings rate.",
+            locale === "vi" ? "Giữ chi tiêu dưới ngân sách." : locale === "es" ? "Mantener gasto bajo presupuesto." : "Keep spending under budget.",
+            locale === "vi" ? "Tăng tỷ lệ tiết kiệm theo tháng." : locale === "es" ? "Aumentar tasa de ahorro mensual." : "Increase monthly savings rate.",
         ],
         wasteful_habits: [],
         meal_plan: mealPlan,
         daily_food_budget: mealPlan.reduce((sum, d) => sum + d.total_cost, 0) / 7,
         food_price_context: {
             query: location,
-            resolved_location: location || (locale === "vi" ? "Khu vuc mac dinh" : locale === "es" ? "Zona por defecto" : "Default region"),
+            resolved_location: location || (locale === "vi" ? "Khu vực mặc định" : locale === "es" ? "Zona por defecto" : "Default region"),
             country_code: region.countryCode,
             lat: null,
             lon: null,
@@ -720,9 +746,9 @@ function buildAdvisorFallback(input: Record<string, unknown>) {
             nearby_examples: region.examples,
             note:
                 locale === "vi"
-                    ? "Du lieu local theo khu vuc uoc tinh."
+                    ? "Dữ liệu địa phương ước tính theo khu vực."
                     : locale === "es"
-                      ? "Datos locales estimados por region."
+                      ? "Datos locales estimados por región."
                       : "Local region-based estimate.",
         },
         asset_allocation: [
@@ -793,68 +819,93 @@ async function getCountries() {
                 .map((c: Record<string, unknown>) => toCountryRow(c))
                 .filter(Boolean) as CountryRow[];
         } catch {
-            rows = [
-                {
-                    code: "US",
-                    numeric_code: "840",
-                    name: "United States",
-                    official_name: "United States of America",
-                    lat: 38,
-                    lng: -97,
-                    area_km2: 9833517,
-                    population: 335000000,
-                    region: "Americas",
-                    subregion: "North America",
-                    capital: "Washington, D.C.",
-                    timezones: ["UTC-05:00"],
-                    currencies: ["USD"],
-                    languages: ["English"],
-                    btc_holding: 4800,
-                    fx_forecast_factor: 1.02,
-                    real_estate_potential_pct: 6.4,
-                    ai_signal: "neutral",
-                },
-                {
-                    code: "VN",
-                    numeric_code: "704",
-                    name: "Vietnam",
-                    official_name: "Socialist Republic of Vietnam",
-                    lat: 16.3,
-                    lng: 107.8,
-                    area_km2: 331212,
-                    population: 100300000,
-                    region: "Asia",
-                    subregion: "South-Eastern Asia",
-                    capital: "Hanoi",
-                    timezones: ["UTC+07:00"],
-                    currencies: ["VND"],
-                    languages: ["Vietnamese"],
-                    btc_holding: 1200,
-                    fx_forecast_factor: 1.08,
-                    real_estate_potential_pct: 8.1,
-                    ai_signal: "bullish",
-                },
-                {
-                    code: "JP",
-                    numeric_code: "392",
-                    name: "Japan",
-                    official_name: "Japan",
-                    lat: 36.2,
-                    lng: 138.2,
-                    area_km2: 377975,
-                    population: 124000000,
-                    region: "Asia",
-                    subregion: "Eastern Asia",
-                    capital: "Tokyo",
-                    timezones: ["UTC+09:00"],
-                    currencies: ["JPY"],
-                    languages: ["Japanese"],
-                    btc_holding: 980,
-                    fx_forecast_factor: 0.98,
-                    real_estate_potential_pct: 5.3,
-                    ai_signal: "cautious",
-                },
-            ];
+            const bundled = Array.isArray(countriesFallback) ? countriesFallback : [];
+            rows = bundled
+                .map((row: Record<string, unknown>) => ({
+                    code: String(row.code || "").toUpperCase(),
+                    numeric_code: String(row.numeric_code || ""),
+                    name: String(row.name || ""),
+                    official_name: String(row.official_name || row.name || ""),
+                    lat: Number(row.lat || 0),
+                    lng: Number(row.lng || 0),
+                    area_km2: Number(row.area_km2 || 0),
+                    population: Number(row.population || 0),
+                    region: String(row.region || ""),
+                    subregion: String(row.subregion || ""),
+                    capital: String(row.capital || ""),
+                    timezones: Array.isArray(row.timezones) ? row.timezones.map(String) : [],
+                    currencies: Array.isArray(row.currencies) ? row.currencies.map(String) : [],
+                    languages: Array.isArray(row.languages) ? row.languages.map(String) : [],
+                    btc_holding: Number(row.btc_holding || 0),
+                    fx_forecast_factor: Number(row.fx_forecast_factor || 1),
+                    real_estate_potential_pct: Number(row.real_estate_potential_pct || 0),
+                    ai_signal: (String(row.ai_signal || "neutral") as CountryRow["ai_signal"]),
+                }))
+                .filter((row: CountryRow) => row.code.length === 2);
+            if (rows.length < 180) {
+                rows = [
+                    {
+                        code: "US",
+                        numeric_code: "840",
+                        name: "United States",
+                        official_name: "United States of America",
+                        lat: 38,
+                        lng: -97,
+                        area_km2: 9833517,
+                        population: 335000000,
+                        region: "Americas",
+                        subregion: "North America",
+                        capital: "Washington, D.C.",
+                        timezones: ["UTC-05:00"],
+                        currencies: ["USD"],
+                        languages: ["English"],
+                        btc_holding: 4800,
+                        fx_forecast_factor: 1.02,
+                        real_estate_potential_pct: 6.4,
+                        ai_signal: "neutral",
+                    },
+                    {
+                        code: "VN",
+                        numeric_code: "704",
+                        name: "Vietnam",
+                        official_name: "Socialist Republic of Vietnam",
+                        lat: 16.3,
+                        lng: 107.8,
+                        area_km2: 331212,
+                        population: 100300000,
+                        region: "Asia",
+                        subregion: "South-Eastern Asia",
+                        capital: "Hanoi",
+                        timezones: ["UTC+07:00"],
+                        currencies: ["VND"],
+                        languages: ["Vietnamese"],
+                        btc_holding: 1200,
+                        fx_forecast_factor: 1.08,
+                        real_estate_potential_pct: 8.1,
+                        ai_signal: "bullish",
+                    },
+                    {
+                        code: "JP",
+                        numeric_code: "392",
+                        name: "Japan",
+                        official_name: "Japan",
+                        lat: 36.2,
+                        lng: 138.2,
+                        area_km2: 377975,
+                        population: 124000000,
+                        region: "Asia",
+                        subregion: "Eastern Asia",
+                        capital: "Tokyo",
+                        timezones: ["UTC+09:00"],
+                        currencies: ["JPY"],
+                        languages: ["Japanese"],
+                        btc_holding: 980,
+                        fx_forecast_factor: 0.98,
+                        real_estate_potential_pct: 5.3,
+                        ai_signal: "cautious",
+                    },
+                ];
+            }
         }
     }
     rows = rows
