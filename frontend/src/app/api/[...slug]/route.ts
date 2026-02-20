@@ -43,6 +43,9 @@ type CountryRow = {
     ai_signal: "bullish" | "neutral" | "cautious";
 };
 
+const RESTCOUNTRIES_FIELDS_URL =
+    "https://restcountries.com/v3.1/all?fields=cca2,ccn3,name,latlng,area,population,region,subregion,capital,timezones,currencies,languages";
+
 const DEFAULT_SETTINGS: SettingsState = {
     auto_balance: true,
     notifications: true,
@@ -377,41 +380,107 @@ async function getCountries() {
     if (globalThis.__nexus_countries && globalThis.__nexus_countries.length > 0) {
         return globalThis.__nexus_countries;
     }
-    const payload = await fetchJson("https://restcountries.com/v3.1/all");
-    const rows = (Array.isArray(payload) ? payload : [])
-        .map((c: Record<string, unknown>) => {
-            const cca2 = String(c.cca2 || "").toUpperCase();
-            if (!cca2 || cca2.length !== 2) return null;
-            const latlng = Array.isArray(c.latlng) ? c.latlng : [];
-            const lat = Number(latlng[0] || 0);
-            const lng = Number(latlng[1] || 0);
-            const nameObj = (c.name || {}) as Record<string, unknown>;
-            const currenciesObj = (c.currencies || {}) as Record<string, unknown>;
-            const languagesObj = (c.languages || {}) as Record<string, unknown>;
-            const score = seededScore(cca2);
-            const ai_signal = score % 3 === 0 ? "bullish" : score % 3 === 1 ? "neutral" : "cautious";
-            return {
-                code: cca2,
-                numeric_code: String(c.ccn3 || ""),
-                name: String(nameObj.common || cca2),
-                official_name: String(nameObj.official || nameObj.common || cca2),
-                lat,
-                lng,
-                area_km2: Number(c.area || 0),
-                population: Number(c.population || 0),
-                region: String(c.region || ""),
-                subregion: String(c.subregion || ""),
-                capital: Array.isArray(c.capital) ? String(c.capital[0] || "") : "",
-                timezones: Array.isArray(c.timezones) ? c.timezones.map((v) => String(v)) : [],
-                currencies: Object.keys(currenciesObj),
-                languages: Object.values(languagesObj).map((v) => String(v)),
-                btc_holding: Math.round((Number(c.population || 0) / 1000000) * (10 + (score % 80))),
-                fx_forecast_factor: Number((0.9 + (score % 40) / 100).toFixed(4)),
-                real_estate_potential_pct: Number((3 + (score % 120) / 10).toFixed(2)),
-                ai_signal,
-            } as CountryRow;
-        })
-        .filter(Boolean) as CountryRow[];
+    let rows: CountryRow[] = [];
+    try {
+        const payload = await fetchJson(RESTCOUNTRIES_FIELDS_URL);
+        rows = (Array.isArray(payload) ? payload : [])
+            .map((c: Record<string, unknown>) => {
+                const cca2 = String(c.cca2 || "").toUpperCase();
+                if (!cca2 || cca2.length !== 2) return null;
+                const latlng = Array.isArray(c.latlng) ? c.latlng : [];
+                const lat = Number(latlng[0] || 0);
+                const lng = Number(latlng[1] || 0);
+                const nameObj = (c.name || {}) as Record<string, unknown>;
+                const currenciesObj = (c.currencies || {}) as Record<string, unknown>;
+                const languagesObj = (c.languages || {}) as Record<string, unknown>;
+                const score = seededScore(cca2);
+                const ai_signal = score % 3 === 0 ? "bullish" : score % 3 === 1 ? "neutral" : "cautious";
+                return {
+                    code: cca2,
+                    numeric_code: String(c.ccn3 || ""),
+                    name: String(nameObj.common || cca2),
+                    official_name: String(nameObj.official || nameObj.common || cca2),
+                    lat,
+                    lng,
+                    area_km2: Number(c.area || 0),
+                    population: Number(c.population || 0),
+                    region: String(c.region || ""),
+                    subregion: String(c.subregion || ""),
+                    capital: Array.isArray(c.capital) ? String(c.capital[0] || "") : "",
+                    timezones: Array.isArray(c.timezones) ? c.timezones.map((v) => String(v)) : [],
+                    currencies: Object.keys(currenciesObj),
+                    languages: Object.values(languagesObj).map((v) => String(v)),
+                    btc_holding: Math.round((Number(c.population || 0) / 1000000) * (10 + (score % 80))),
+                    fx_forecast_factor: Number((0.9 + (score % 40) / 100).toFixed(4)),
+                    real_estate_potential_pct: Number((3 + (score % 120) / 10).toFixed(2)),
+                    ai_signal,
+                } as CountryRow;
+            })
+            .filter(Boolean) as CountryRow[];
+    } catch {
+        rows = [
+            {
+                code: "US",
+                numeric_code: "840",
+                name: "United States",
+                official_name: "United States of America",
+                lat: 38,
+                lng: -97,
+                area_km2: 9833517,
+                population: 335000000,
+                region: "Americas",
+                subregion: "North America",
+                capital: "Washington, D.C.",
+                timezones: ["UTC-05:00"],
+                currencies: ["USD"],
+                languages: ["English"],
+                btc_holding: 4800,
+                fx_forecast_factor: 1.02,
+                real_estate_potential_pct: 6.4,
+                ai_signal: "neutral",
+            },
+            {
+                code: "VN",
+                numeric_code: "704",
+                name: "Vietnam",
+                official_name: "Socialist Republic of Vietnam",
+                lat: 16.3,
+                lng: 107.8,
+                area_km2: 331212,
+                population: 100300000,
+                region: "Asia",
+                subregion: "South-Eastern Asia",
+                capital: "Hanoi",
+                timezones: ["UTC+07:00"],
+                currencies: ["VND"],
+                languages: ["Vietnamese"],
+                btc_holding: 1200,
+                fx_forecast_factor: 1.08,
+                real_estate_potential_pct: 8.1,
+                ai_signal: "bullish",
+            },
+            {
+                code: "JP",
+                numeric_code: "392",
+                name: "Japan",
+                official_name: "Japan",
+                lat: 36.2,
+                lng: 138.2,
+                area_km2: 377975,
+                population: 124000000,
+                region: "Asia",
+                subregion: "Eastern Asia",
+                capital: "Tokyo",
+                timezones: ["UTC+09:00"],
+                currencies: ["JPY"],
+                languages: ["Japanese"],
+                btc_holding: 980,
+                fx_forecast_factor: 0.98,
+                real_estate_potential_pct: 5.3,
+                ai_signal: "cautious",
+            },
+        ];
+    }
     globalThis.__nexus_countries = rows;
     return rows;
 }
@@ -585,7 +654,10 @@ async function handleGet(slug: string[], req: NextRequest) {
 
     if (slug[0] === "market" && slug[1] === "countries" && slug.length === 2) {
         const countries = await getCountries();
-        return NextResponse.json({ countries, updated_at: nowIso() });
+        return NextResponse.json(
+            { countries, updated_at: nowIso() },
+            { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=1200" } },
+        );
     }
 
     if (slug[0] === "market" && slug[1] === "countries" && slug[2]) {
@@ -593,11 +665,13 @@ async function handleGet(slug: string[], req: NextRequest) {
         const code = normalizeSymbol(slug[2]);
         const row = countries.find((c) => c.code === code);
         if (!row) return NextResponse.json({ detail: "country_not_found" }, { status: 404 });
-        const gdp = await getWorldBankLatest(code, "NY.GDP.MKTP.CD").catch(() => ({ value: null, year: null }));
-        const gdpPc = await getWorldBankLatest(code, "NY.GDP.PCAP.CD").catch(() => ({ value: null, year: null }));
-        const gini = await getWorldBankLatest(code, "SI.POV.GINI").catch(() => ({ value: null, year: null }));
-        const electricity = await getWorldBankLatest(code, "EG.USE.ELEC.KH.PC").catch(() => ({ value: null, year: null }));
-        const population = await getWorldBankLatest(code, "SP.POP.TOTL").catch(() => ({ value: null, year: null }));
+        const [gdp, gdpPc, gini, electricity, population] = await Promise.all([
+            getWorldBankLatest(code, "NY.GDP.MKTP.CD").catch(() => ({ value: null, year: null })),
+            getWorldBankLatest(code, "NY.GDP.PCAP.CD").catch(() => ({ value: null, year: null })),
+            getWorldBankLatest(code, "SI.POV.GINI").catch(() => ({ value: null, year: null })),
+            getWorldBankLatest(code, "EG.USE.ELEC.KH.PC").catch(() => ({ value: null, year: null })),
+            getWorldBankLatest(code, "SP.POP.TOTL").catch(() => ({ value: null, year: null })),
+        ]);
         return NextResponse.json({
             country: {
                 ...row,
