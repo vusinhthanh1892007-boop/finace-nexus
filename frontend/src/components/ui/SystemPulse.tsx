@@ -10,7 +10,7 @@ import { getStatusColor } from "@/lib/utils";
 import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 
 
-const POLL_INTERVAL_MS = 15_000;
+const POLL_INTERVAL_MS = 30_000;
 
 export default function SystemPulse() {
     const t = useTranslations("systemPulse");
@@ -25,7 +25,7 @@ export default function SystemPulse() {
     const checkHealth = useCallback(async (signal: AbortSignal) => {
         const start = performance.now();
         try {
-            const res = await fetch("/api/health", { signal, cache: "no-store" });
+            const res = await fetch("/api/health", { signal });
             const latency = Math.round(performance.now() - start);
             if (res.ok) {
                 const data = await res.json();

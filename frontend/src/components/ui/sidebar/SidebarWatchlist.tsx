@@ -12,7 +12,6 @@ import { useLocale, useTranslations } from "next-intl";
 import type { WatchItem } from "@/lib/types";
 import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 import { apiClient } from "@/lib/api";
-import { isCryptoLikeSymbol, toBinanceSymbol } from "@/lib/marketSymbols";
 
 function toFallback(symbols: string[]): WatchItem[] {
     return symbols.map((symbol) => ({ symbol, price: 0, change: 0 }));
@@ -89,7 +88,6 @@ export default function SidebarWatchlist() {
             try {
                 const res = await fetch(`/api/market/quotes?symbols=${symbolsCsv}`, {
                     signal,
-                    cache: "no-store",
                 });
                 if (!res.ok) throw new Error("watchlist request failed");
                 const rows = await res.json();
@@ -114,40 +112,10 @@ export default function SidebarWatchlist() {
                         change: row.change,
                     }));
 
-                const cryptoSymbols = symbols.filter((symbol) => isCryptoLikeSymbol(symbol));
-                const cryptoMapped = (
-                    await Promise.all(
-                        cryptoSymbols.map(async (symbol) => {
-                            try {
-                                const pair = toBinanceSymbol(symbol);
-                                if (!pair) return null;
-                                const tickerRes = await fetch(`/api/market/binance/ticker/${encodeURIComponent(pair)}`, {
-                                    signal,
-                                    cache: "no-store",
-                                });
-                                if (!tickerRes.ok) return null;
-                                const ticker = await tickerRes.json();
-                                const price = Number(ticker?.last_price || 0);
-                                if (!Number.isFinite(price) || price <= 0) return null;
-                                return {
-                                    symbol,
-                                    price,
-                                    change: Number(ticker?.price_change_percent || 0),
-                                } as WatchItem;
-                            } catch {
-                                return null;
-                            }
-                        }),
-                    )
-                ).filter((row): row is WatchItem => Boolean(row));
-
                 const bySymbol = new Map(mapped.map((item: WatchItem) => [item.symbol, item]));
-                for (const row of cryptoMapped) {
-                    bySymbol.set(row.symbol, row);
-                }
                 const result = symbols.map((sym) => bySymbol.get(sym) ?? { symbol: sym, price: 0, change: 0 });
                 setWatchlist(result);
-                setBackendLive(mapped.length > 0 || cryptoMapped.length > 0);
+                setBackendLive(mapped.length > 0);
             } catch {
                 setWatchlist(toFallback(symbols));
                 setBackendLive(false);
@@ -156,7 +124,7 @@ export default function SidebarWatchlist() {
         [symbols, symbolsCsv],
     );
 
-    useVisibilityPolling(fetchWatchlist, 10_000);
+    useVisibilityPolling(fetchWatchlist, 20_000);
 
     return (
         <div

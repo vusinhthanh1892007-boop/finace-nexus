@@ -43,8 +43,16 @@ type CountryRow = {
     ai_signal: "bullish" | "neutral" | "cautious";
 };
 
+type CacheEntry = {
+    value: unknown;
+    expiresAt: number;
+    staleUntil: number;
+};
+
 const RESTCOUNTRIES_FIELDS_URL =
     "https://restcountries.com/v3.1/all?fields=cca2,ccn3,name,latlng,area,population,region,subregion,capital,timezones,currencies,languages";
+const DEFAULT_FETCH_TIMEOUT_MS = 7000;
+const MAX_DATA_CACHE_ITEMS = 1400;
 
 const DEFAULT_SETTINGS: SettingsState = {
     auto_balance: true,
@@ -66,6 +74,8 @@ const DEFAULT_SETTINGS: SettingsState = {
 declare global {
     var __nexus_state: SettingsState | undefined;
     var __nexus_countries: CountryRow[] | undefined;
+    var __nexus_data_cache: Map<string, CacheEntry> | undefined;
+    var __nexus_inflight_cache: Map<string, Promise<unknown>> | undefined;
 }
 
 function getState(): SettingsState {
@@ -146,8 +156,107 @@ function seededScore(input: string) {
     return Math.abs(h >>> 0);
 }
 
-async function fetchJson(url: string, init?: RequestInit) {
-    const res = await fetch(url, { ...init, cache: "no-store" });
+function getDataCache() {
+    if (!globalThis.__nexus_data_cache) {
+        globalThis.__nexus_data_cache = new Map<string, CacheEntry>();
+    }
+    return globalThis.__nexus_data_cache;
+}
+
+function getInflightCache() {
+    if (!globalThis.__nexus_inflight_cache) {
+        globalThis.__nexus_inflight_cache = new Map<string, Promise<unknown>>();
+    }
+    return globalThis.__nexus_inflight_cache;
+}
+
+function pruneDataCache() {
+    const cache = getDataCache();
+    if (cache.size <= MAX_DATA_CACHE_ITEMS) return;
+    const now = Date.now();
+    for (const [key, entry] of cache.entries()) {
+        if (entry.staleUntil <= now) {
+            cache.delete(key);
+        }
+        if (cache.size <= MAX_DATA_CACHE_ITEMS) return;
+    }
+    while (cache.size > MAX_DATA_CACHE_ITEMS) {
+        const oldestKey = cache.keys().next().value;
+        if (!oldestKey) return;
+        cache.delete(oldestKey);
+    }
+}
+
+async function withCache<T>(key: string, ttlMs: number, producer: () => Promise<T>, staleMs = ttlMs * 4): Promise<T> {
+    const cache = getDataCache();
+    const inflight = getInflightCache();
+    const now = Date.now();
+    const cached = cache.get(key);
+
+    if (cached && cached.expiresAt > now) {
+        return cached.value as T;
+    }
+
+    const pending = inflight.get(key);
+    if (pending) {
+        return pending as Promise<T>;
+    }
+
+    const task = (async () => {
+        try {
+            const value = await producer();
+            cache.set(key, {
+                value,
+                expiresAt: now + Math.max(1000, ttlMs),
+                staleUntil: now + Math.max(1000, ttlMs + staleMs),
+            });
+            pruneDataCache();
+            return value;
+        } catch (error) {
+            if (cached && cached.staleUntil > Date.now()) {
+                return cached.value as T;
+            }
+            throw error;
+        } finally {
+            inflight.delete(key);
+        }
+    })();
+
+    inflight.set(key, task as Promise<unknown>);
+    return task;
+}
+
+function withCacheHeaders(maxAgeSec: number, staleSec = maxAgeSec * 4) {
+    return {
+        "Cache-Control": `public, s-maxage=${Math.max(1, maxAgeSec)}, stale-while-revalidate=${Math.max(1, staleSec)}`,
+    };
+}
+
+function jsonWithCache(payload: unknown, maxAgeSec: number, staleSec = maxAgeSec * 4, status = 200) {
+    return NextResponse.json(payload, {
+        status,
+        headers: withCacheHeaders(maxAgeSec, staleSec),
+    });
+}
+
+function ttlForCandle(interval: string) {
+    const i = String(interval || "1h").toLowerCase();
+    if (["1m", "2m", "3m", "5m"].includes(i)) return 8000;
+    if (["15m", "30m"].includes(i)) return 15000;
+    if (["1h", "2h", "4h", "6h"].includes(i)) return 30000;
+    return 60000;
+}
+
+async function fetchJson(url: string, init?: RequestInit, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), Math.max(1000, timeoutMs));
+    const initSignal = init?.signal;
+    const signal =
+        initSignal && typeof AbortSignal !== "undefined" && typeof AbortSignal.any === "function"
+            ? AbortSignal.any([initSignal, controller.signal])
+            : controller.signal;
+
+    const res = await fetch(url, { ...init, signal, cache: "no-store" }).finally(() => clearTimeout(timer));
     if (!res.ok) {
         throw new Error(`${res.status}`);
     }
@@ -155,26 +264,38 @@ async function fetchJson(url: string, init?: RequestInit) {
 }
 
 async function getBinanceTicker(pair: string) {
-    const raw = await fetchJson(`https://api.binance.com/api/v3/ticker/24hr?symbol=${encodeURIComponent(pair)}`);
-    const last = Number(raw.lastPrice || 0);
-    const open = Number(raw.openPrice || 0);
-    const high = Number(raw.highPrice || 0);
-    const low = Number(raw.lowPrice || 0);
-    const change = Number(raw.priceChange || 0);
-    const changePct = Number(raw.priceChangePercent || 0);
-    return {
-        symbol: String(raw.symbol || pair),
-        last_price: last,
-        open_price: open,
-        high_price: high,
-        low_price: low,
-        price_change: change,
-        price_change_percent: changePct,
-        volume_base: Number(raw.volume || 0),
-        volume_quote: Number(raw.quoteVolume || 0),
-        count_24h: Number(raw.count || 0),
-        updated_at: nowIso(),
-    };
+    const normalizedPair = normalizeSymbol(pair);
+    return withCache(
+        `binance:ticker:${normalizedPair}`,
+        4000,
+        async () => {
+            const raw = await fetchJson(
+                `https://api.binance.com/api/v3/ticker/24hr?symbol=${encodeURIComponent(normalizedPair)}`,
+                undefined,
+                4500,
+            );
+            const last = Number(raw.lastPrice || 0);
+            const open = Number(raw.openPrice || 0);
+            const high = Number(raw.highPrice || 0);
+            const low = Number(raw.lowPrice || 0);
+            const change = Number(raw.priceChange || 0);
+            const changePct = Number(raw.priceChangePercent || 0);
+            return {
+                symbol: String(raw.symbol || normalizedPair),
+                last_price: last,
+                open_price: open,
+                high_price: high,
+                low_price: low,
+                price_change: change,
+                price_change_percent: changePct,
+                volume_base: Number(raw.volume || 0),
+                volume_quote: Number(raw.quoteVolume || 0),
+                count_24h: Number(raw.count || 0),
+                updated_at: nowIso(),
+            };
+        },
+        18000,
+    );
 }
 
 async function getQuote(symbol: string) {
@@ -200,22 +321,33 @@ async function getQuote(symbol: string) {
     }
 
     const ySymbol = toYahooSymbol(s);
-    const payload = await fetchJson(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ySymbol)}`);
-    const row = payload?.quoteResponse?.result?.[0];
-    if (!row) {
-        return null;
-    }
-    return {
-        symbol: s,
-        name: String(row.shortName || row.longName || s),
-        price: Number(row.regularMarketPrice || 0),
-        change: Number(row.regularMarketChange || 0),
-        change_percent: Number(row.regularMarketChangePercent || 0),
-        day_high: Number(row.regularMarketDayHigh || 0),
-        day_low: Number(row.regularMarketDayLow || 0),
-        volume: Number(row.regularMarketVolume || 0),
-        source: "yahoo",
-    };
+    return withCache(
+        `yahoo:quote:${ySymbol}`,
+        12000,
+        async () => {
+            const payload = await fetchJson(
+                `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ySymbol)}`,
+                undefined,
+                5500,
+            );
+            const row = payload?.quoteResponse?.result?.[0];
+            if (!row) {
+                return null;
+            }
+            return {
+                symbol: s,
+                name: String(row.shortName || row.longName || s),
+                price: Number(row.regularMarketPrice || 0),
+                change: Number(row.regularMarketChange || 0),
+                change_percent: Number(row.regularMarketChangePercent || 0),
+                day_high: Number(row.regularMarketDayHigh || 0),
+                day_low: Number(row.regularMarketDayLow || 0),
+                volume: Number(row.regularMarketVolume || 0),
+                source: "yahoo",
+            };
+        },
+        45000,
+    );
 }
 
 function intervalToBinance(interval: string) {
@@ -241,63 +373,82 @@ function rangeForInterval(interval: string) {
 
 async function getCandles(symbol: string, interval: string, limit: number) {
     const s = normalizeSymbol(symbol);
+    const safeLimit = Math.max(20, Math.min(1000, limit));
     if (isCryptoLike(s) || s.endsWith("USDT")) {
         const pair = toBinancePair(s.replace("USDT", ""));
         const klineInterval = intervalToBinance(interval);
-        const rows = await fetchJson(
-            `https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(pair)}&interval=${encodeURIComponent(klineInterval)}&limit=${Math.max(20, Math.min(1000, limit))}`,
+        return withCache(
+            `binance:candles:${pair}:${klineInterval}:${safeLimit}`,
+            ttlForCandle(klineInterval),
+            async () => {
+                const rows = await fetchJson(
+                    `https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(pair)}&interval=${encodeURIComponent(klineInterval)}&limit=${safeLimit}`,
+                    undefined,
+                    6000,
+                );
+                const candles = Array.isArray(rows)
+                    ? rows.map((row: unknown[]) => ({
+                          time: Number(row[0] || 0),
+                          open: Number(row[1] || 0),
+                          high: Number(row[2] || 0),
+                          low: Number(row[3] || 0),
+                          close: Number(row[4] || 0),
+                          volume: Number(row[5] || 0),
+                      }))
+                    : [];
+                return {
+                    symbol: s,
+                    interval: klineInterval,
+                    source: "binance",
+                    candles,
+                    updated_at: nowIso(),
+                };
+            },
+            90000,
         );
-        const candles = Array.isArray(rows)
-            ? rows.map((row: unknown[]) => ({
-                  time: Number(row[0] || 0),
-                  open: Number(row[1] || 0),
-                  high: Number(row[2] || 0),
-                  low: Number(row[3] || 0),
-                  close: Number(row[4] || 0),
-                  volume: Number(row[5] || 0),
-              }))
-            : [];
-        return {
-            symbol: s,
-            interval: klineInterval,
-            source: "binance",
-            candles,
-            updated_at: nowIso(),
-        };
     }
 
     const ySymbol = toYahooSymbol(s);
     const yInterval = intervalToYahoo(interval);
     const range = rangeForInterval(interval);
-    const payload = await fetchJson(
-        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ySymbol)}?interval=${encodeURIComponent(yInterval)}&range=${encodeURIComponent(range)}`,
+    return withCache(
+        `yahoo:candles:${ySymbol}:${yInterval}:${range}:${safeLimit}`,
+        ttlForCandle(yInterval),
+        async () => {
+            const payload = await fetchJson(
+                `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ySymbol)}?interval=${encodeURIComponent(yInterval)}&range=${encodeURIComponent(range)}`,
+                undefined,
+                6500,
+            );
+            const result = payload?.chart?.result?.[0];
+            const times: number[] = Array.isArray(result?.timestamp) ? result.timestamp : [];
+            const quote = result?.indicators?.quote?.[0] || {};
+            const opens: number[] = Array.isArray(quote.open) ? quote.open : [];
+            const highs: number[] = Array.isArray(quote.high) ? quote.high : [];
+            const lows: number[] = Array.isArray(quote.low) ? quote.low : [];
+            const closes: number[] = Array.isArray(quote.close) ? quote.close : [];
+            const volumes: number[] = Array.isArray(quote.volume) ? quote.volume : [];
+            const candles = times
+                .map((t, idx) => ({
+                    time: Number(t || 0) * 1000,
+                    open: Number(opens[idx] || 0),
+                    high: Number(highs[idx] || 0),
+                    low: Number(lows[idx] || 0),
+                    close: Number(closes[idx] || 0),
+                    volume: Number(volumes[idx] || 0),
+                }))
+                .filter((c) => c.time > 0 && c.open > 0 && c.high > 0 && c.low > 0 && c.close > 0)
+                .slice(-safeLimit);
+            return {
+                symbol: s,
+                interval: yInterval,
+                source: "yahoo",
+                candles,
+                updated_at: nowIso(),
+            };
+        },
+        120000,
     );
-    const result = payload?.chart?.result?.[0];
-    const times: number[] = Array.isArray(result?.timestamp) ? result.timestamp : [];
-    const quote = result?.indicators?.quote?.[0] || {};
-    const opens: number[] = Array.isArray(quote.open) ? quote.open : [];
-    const highs: number[] = Array.isArray(quote.high) ? quote.high : [];
-    const lows: number[] = Array.isArray(quote.low) ? quote.low : [];
-    const closes: number[] = Array.isArray(quote.close) ? quote.close : [];
-    const volumes: number[] = Array.isArray(quote.volume) ? quote.volume : [];
-    const candles = times
-        .map((t, idx) => ({
-            time: Number(t || 0) * 1000,
-            open: Number(opens[idx] || 0),
-            high: Number(highs[idx] || 0),
-            low: Number(lows[idx] || 0),
-            close: Number(closes[idx] || 0),
-            volume: Number(volumes[idx] || 0),
-        }))
-        .filter((c) => c.time > 0 && c.open > 0 && c.high > 0 && c.low > 0 && c.close > 0)
-        .slice(-Math.max(20, Math.min(1000, limit)));
-    return {
-        symbol: s,
-        interval: yInterval,
-        source: "yahoo",
-        candles,
-        updated_at: nowIso(),
-    };
 }
 
 function computeBudgetStatus(utilization: number) {
@@ -487,43 +638,66 @@ async function getCountries() {
 
 async function getWorldBankLatest(country: string, indicator: string) {
     const url = `https://api.worldbank.org/v2/country/${encodeURIComponent(country)}/indicator/${encodeURIComponent(indicator)}?format=json&per_page=70`;
-    const payload = await fetchJson(url);
-    const rows = Array.isArray(payload?.[1]) ? payload[1] : [];
-    const found = rows.find((row: Record<string, unknown>) => row.value !== null && row.value !== undefined);
-    if (!found) return { value: null as number | null, year: null as string | null };
-    return {
-        value: Number(found.value || 0),
-        year: String(found.date || ""),
-    };
+    return withCache(
+        `worldbank:${country}:${indicator}`,
+        12 * 60 * 60 * 1000,
+        async () => {
+            const payload = await fetchJson(url, undefined, 7000);
+            const rows = Array.isArray(payload?.[1]) ? payload[1] : [];
+            const found = rows.find((row: Record<string, unknown>) => row.value !== null && row.value !== undefined);
+            if (!found) return { value: null as number | null, year: null as string | null };
+            return {
+                value: Number(found.value || 0),
+                year: String(found.date || ""),
+            };
+        },
+        48 * 60 * 60 * 1000,
+    );
+}
+
+async function getUsdRates() {
+    return withCache(
+        "fx:usd-rates",
+        10 * 60 * 1000,
+        async () => {
+            const payload = await fetchJson("https://open.er-api.com/v6/latest/USD", undefined, 5000);
+            return (payload?.rates || {}) as Record<string, number>;
+        },
+        30 * 60 * 1000,
+    );
 }
 
 async function handleGet(slug: string[], req: NextRequest) {
     const state = getState();
     if (slug.length === 1 && slug[0] === "health") {
-        return NextResponse.json({
-            backend: "healthy",
-            latency: 15,
-            gemini: Boolean(state.gemini_api_key),
-            openai: Boolean(state.openai_api_key),
-            active_ai_providers: [state.gemini_api_key ? "gemini" : "", state.openai_api_key ? "openai" : ""].filter(Boolean),
-        });
+        return jsonWithCache(
+            {
+                backend: "healthy",
+                latency: 15,
+                gemini: Boolean(state.gemini_api_key),
+                openai: Boolean(state.openai_api_key),
+                active_ai_providers: [state.gemini_api_key ? "gemini" : "", state.openai_api_key ? "openai" : ""].filter(Boolean),
+            },
+            5,
+            20,
+        );
     }
 
     if (slug.length === 1 && slug[0] === "settings") {
-        return NextResponse.json(publicSettings(state));
+        return NextResponse.json(publicSettings(state), { headers: { "Cache-Control": "no-store" } });
     }
 
     if (slug[0] === "market" && slug[1] === "quote" && slug[2]) {
         const quote = await getQuote(slug[2]);
         if (!quote) return NextResponse.json({ detail: "quote_not_found" }, { status: 404 });
-        return NextResponse.json(quote);
+        return jsonWithCache(quote, 4, 20);
     }
 
     if (slug[0] === "market" && slug[1] === "quotes") {
         const symbolsCsv = req.nextUrl.searchParams.get("symbols") || "";
         const symbols = symbolsCsv.split(",").map(normalizeSymbol).filter(Boolean).slice(0, 30);
         const rows = await Promise.all(symbols.map(async (symbol) => getQuote(symbol).catch(() => null)));
-        return NextResponse.json(rows.filter(Boolean));
+        return jsonWithCache(rows.filter(Boolean), 4, 20);
     }
 
     if (slug[0] === "market" && slug[1] === "indices") {
@@ -538,7 +712,7 @@ async function handleGet(slug: string[], req: NextRequest) {
                 change: q!.change,
                 change_percent: q!.change_percent,
             }));
-        return NextResponse.json({ indices, updated_at: nowIso() });
+        return jsonWithCache({ indices, updated_at: nowIso() }, 5, 30);
     }
 
     if (slug[0] === "market" && slug[1] === "candles" && slug[2]) {
@@ -551,44 +725,63 @@ async function handleGet(slug: string[], req: NextRequest) {
             candles: [],
             updated_at: nowIso(),
         }));
-        return NextResponse.json(payload);
+        return jsonWithCache(payload, 6, 25);
     }
 
     if (slug[0] === "market" && slug[1] === "binance" && slug[2] === "ticker" && slug[3]) {
         const payload = await getBinanceTicker(slug[3]);
-        return NextResponse.json(payload);
+        return jsonWithCache(payload, 4, 20);
     }
 
     if (slug[0] === "market" && slug[1] === "binance" && slug[2] === "depth" && slug[3]) {
         const limit = Math.max(5, Math.min(100, Number(req.nextUrl.searchParams.get("limit") || "20")));
-        const raw = await fetchJson(`https://api.binance.com/api/v3/depth?symbol=${encodeURIComponent(slug[3])}&limit=${limit}`);
+        const cacheKey = `binance:depth:${slug[3]}:${limit}`;
+        const raw = await withCache(
+            cacheKey,
+            3500,
+            () => fetchJson(`https://api.binance.com/api/v3/depth?symbol=${encodeURIComponent(slug[3])}&limit=${limit}`, undefined, 5000),
+            14000,
+        );
         const toLevel = (row: unknown[]) => ({ price: Number(row?.[0] || 0), quantity: Number(row?.[1] || 0) });
-        return NextResponse.json({
-            symbol: String(raw.symbol || slug[3]),
-            last_update_id: Number(raw.lastUpdateId || 0),
-            bids: Array.isArray(raw.bids) ? raw.bids.map(toLevel) : [],
-            asks: Array.isArray(raw.asks) ? raw.asks.map(toLevel) : [],
-            updated_at: nowIso(),
-        });
+        return jsonWithCache(
+            {
+                symbol: String(raw.symbol || slug[3]),
+                last_update_id: Number(raw.lastUpdateId || 0),
+                bids: Array.isArray(raw.bids) ? raw.bids.map(toLevel) : [],
+                asks: Array.isArray(raw.asks) ? raw.asks.map(toLevel) : [],
+                updated_at: nowIso(),
+            },
+            3,
+            12,
+        );
     }
 
     if (slug[0] === "market" && slug[1] === "binance" && slug[2] === "trades" && slug[3]) {
         const limit = Math.max(5, Math.min(200, Number(req.nextUrl.searchParams.get("limit") || "40")));
-        const raw = await fetchJson(`https://api.binance.com/api/v3/trades?symbol=${encodeURIComponent(slug[3])}&limit=${limit}`);
-        return NextResponse.json({
-            symbol: slug[3],
-            trades: Array.isArray(raw)
-                ? raw.map((t: Record<string, unknown>) => ({
-                      id: Number(t.id || 0),
-                      price: Number(t.price || 0),
-                      quantity: Number(t.qty || 0),
-                      quote_quantity: Number(t.quoteQty || 0),
-                      time: Number(t.time || 0),
-                      is_buyer_maker: Boolean(t.isBuyerMaker),
-                  }))
-                : [],
-            updated_at: nowIso(),
-        });
+        const raw = await withCache(
+            `binance:trades:${slug[3]}:${limit}`,
+            3500,
+            () => fetchJson(`https://api.binance.com/api/v3/trades?symbol=${encodeURIComponent(slug[3])}&limit=${limit}`, undefined, 5000),
+            12000,
+        );
+        return jsonWithCache(
+            {
+                symbol: slug[3],
+                trades: Array.isArray(raw)
+                    ? raw.map((t: Record<string, unknown>) => ({
+                          id: Number(t.id || 0),
+                          price: Number(t.price || 0),
+                          quantity: Number(t.qty || 0),
+                          quote_quantity: Number(t.quoteQty || 0),
+                          time: Number(t.time || 0),
+                          is_buyer_maker: Boolean(t.isBuyerMaker),
+                      }))
+                    : [],
+                updated_at: nowIso(),
+            },
+            3,
+            12,
+        );
     }
 
     if (slug[0] === "market" && slug[1] === "analytics") {
@@ -623,12 +816,16 @@ async function handleGet(slug: string[], req: NextRequest) {
         const avgMove = volatility.length > 0 ? volatility.reduce((sum, r) => sum + Math.abs(r.change_percent), 0) / volatility.length : 0;
         const score = clampNumber(avgMove * 8, 5, 95);
         const level = score >= 60 ? "high" : score >= 30 ? "medium" : "low";
-        return NextResponse.json({
-            volatility_24h: volatility,
-            momentum_7d: momentumRows,
-            correlation_risk: { score, level },
-            updated_at: nowIso(),
-        });
+        return jsonWithCache(
+            {
+                volatility_24h: volatility,
+                momentum_7d: momentumRows,
+                correlation_risk: { score, level },
+                updated_at: nowIso(),
+            },
+            8,
+            40,
+        );
     }
 
     if (slug[0] === "market" && slug[1] === "portfolio-overview") {
@@ -643,21 +840,22 @@ async function handleGet(slug: string[], req: NextRequest) {
             change_percent: row!.change_percent,
             weight: total > 0 ? (row!.price / total) * 100 : 0,
         }));
-        return NextResponse.json({
-            watch_symbols: watch,
-            allocation,
-            total_market_value: total,
-            risk_note: "Vercel serverless demo mode.",
-            updated_at: nowIso(),
-        });
+        return jsonWithCache(
+            {
+                watch_symbols: watch,
+                allocation,
+                total_market_value: total,
+                risk_note: "Vercel serverless demo mode.",
+                updated_at: nowIso(),
+            },
+            6,
+            24,
+        );
     }
 
     if (slug[0] === "market" && slug[1] === "countries" && slug.length === 2) {
         const countries = await getCountries();
-        return NextResponse.json(
-            { countries, updated_at: nowIso() },
-            { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=1200" } },
-        );
+        return jsonWithCache({ countries, updated_at: nowIso() }, 900, 3600);
     }
 
     if (slug[0] === "market" && slug[1] === "countries" && slug[2]) {
@@ -672,23 +870,27 @@ async function handleGet(slug: string[], req: NextRequest) {
             getWorldBankLatest(code, "EG.USE.ELEC.KH.PC").catch(() => ({ value: null, year: null })),
             getWorldBankLatest(code, "SP.POP.TOTL").catch(() => ({ value: null, year: null })),
         ]);
-        return NextResponse.json({
-            country: {
-                ...row,
-                gdp_usd: gdp.value,
-                gdp_year: gdp.year,
-                gdp_trillion_usd: gdp.value ? gdp.value / 1_000_000_000_000 : null,
-                gdp_per_capita_usd: gdpPc.value,
-                gdp_per_capita_year: gdpPc.year,
-                gini: gini.value,
-                gini_year: gini.year,
-                electricity_kwh_per_capita: electricity.value,
-                electricity_year: electricity.year,
-                population_wb: population.value,
-                population_year: population.year,
+        return jsonWithCache(
+            {
+                country: {
+                    ...row,
+                    gdp_usd: gdp.value,
+                    gdp_year: gdp.year,
+                    gdp_trillion_usd: gdp.value ? gdp.value / 1_000_000_000_000 : null,
+                    gdp_per_capita_usd: gdpPc.value,
+                    gdp_per_capita_year: gdpPc.year,
+                    gini: gini.value,
+                    gini_year: gini.year,
+                    electricity_kwh_per_capita: electricity.value,
+                    electricity_year: electricity.year,
+                    population_wb: population.value,
+                    population_year: population.year,
+                },
+                updated_at: nowIso(),
             },
-            updated_at: nowIso(),
-        });
+            1800,
+            7200,
+        );
     }
 
     if (slug[0] === "market" && slug[1] === "income-benchmark") {
@@ -705,56 +907,71 @@ async function handleGet(slug: string[], req: NextRequest) {
         const ratio = base > 0 ? annualIncome / base : 1;
         const percentile = clampNumber(50 + Math.log10(Math.max(0.1, ratio)) * 35, 1, 99.9);
         const top = Number((100 - percentile).toFixed(2));
-        return NextResponse.json({
-            country,
-            country_name: row.name,
-            annual_income_usd: annualIncome,
-            gdp_trillion_usd: null,
-            gdp_per_capita_usd: gdpPc.value,
-            gini: Number(gini.value || 35),
-            estimated_percentile: Number(percentile.toFixed(2)),
-            estimated_top_percent: top,
-            benchmark_note: "Estimated percentile from GDP-per-capita baseline.",
-            updated_at: nowIso(),
-        });
+        return jsonWithCache(
+            {
+                country,
+                country_name: row.name,
+                annual_income_usd: annualIncome,
+                gdp_trillion_usd: null,
+                gdp_per_capita_usd: gdpPc.value,
+                gini: Number(gini.value || 35),
+                estimated_percentile: Number(percentile.toFixed(2)),
+                estimated_top_percent: top,
+                benchmark_note: "Estimated percentile from GDP-per-capita baseline.",
+                updated_at: nowIso(),
+            },
+            1800,
+            7200,
+        );
     }
 
     if (slug[0] === "market" && slug[1] === "local-search") {
         const query = req.nextUrl.searchParams.get("query") || "";
         const category = req.nextUrl.searchParams.get("category") || "restaurant";
         if (!query.trim()) {
-            return NextResponse.json({ query, category, places: [] });
+            return jsonWithCache({ query, category, places: [] }, 300, 1200);
         }
-        try {
-            const nominatim = await fetchJson(
-                `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`,
-                { headers: { "User-Agent": "NexusFinance/1.0" } },
-            );
-            const found = Array.isArray(nominatim) ? nominatim[0] : null;
-            if (!found) return NextResponse.json({ query, category, places: [] });
-            const lat = Number(found.lat || 0);
-            const lon = Number(found.lon || 0);
-            const overpassQuery = `[out:json][timeout:15];node(around:2500,${lat},${lon})["amenity"="${category}"];out body 12;`;
-            const overpass = await fetchJson("https://overpass-api.de/api/interpreter", {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-                body: `data=${encodeURIComponent(overpassQuery)}`,
-            });
-            const places = Array.isArray(overpass?.elements)
-                ? overpass.elements.map((el: Record<string, unknown>) => {
-                      const name = String((el.tags as Record<string, unknown> | undefined)?.name || `${category}`);
-                      const elLat = Number(el.lat || lat);
-                      const elLon = Number(el.lon || lon);
-                      const dx = (elLat - lat) * 111;
-                      const dy = (elLon - lon) * 111;
-                      const distance = Math.sqrt(dx * dx + dy * dy);
-                      return { name, distance_km: Number(distance.toFixed(2)), opening_hours: "Unknown" };
-                  })
-                : [];
-            return NextResponse.json({ query, category, places: places.slice(0, 12) });
-        } catch {
-            return NextResponse.json({ query, category, places: [] });
-        }
+        const normalizedQuery = query.trim().toLowerCase();
+        const cacheKey = `local-search:${category}:${normalizedQuery}`;
+        const result = await withCache(
+            cacheKey,
+            10 * 60 * 1000,
+            async () => {
+                const nominatim = await fetchJson(
+                    `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`,
+                    { headers: { "User-Agent": "NexusFinance/1.0" } },
+                    5500,
+                );
+                const found = Array.isArray(nominatim) ? nominatim[0] : null;
+                if (!found) return { query, category, places: [] as Array<{ name: string; distance_km: number; opening_hours: string }> };
+                const lat = Number(found.lat || 0);
+                const lon = Number(found.lon || 0);
+                const overpassQuery = `[out:json][timeout:15];node(around:2500,${lat},${lon})["amenity"="${category}"];out body 12;`;
+                const overpass = await fetchJson(
+                    "https://overpass-api.de/api/interpreter",
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+                        body: `data=${encodeURIComponent(overpassQuery)}`,
+                    },
+                    7000,
+                );
+                const places = Array.isArray(overpass?.elements)
+                    ? overpass.elements.map((el: Record<string, unknown>) => {
+                          const name = String((el.tags as Record<string, unknown> | undefined)?.name || `${category}`);
+                          const elLat = Number(el.lat || lat);
+                          const elLon = Number(el.lon || lon);
+                          const dx = (elLat - lat) * 111;
+                          const dy = (elLon - lon) * 111;
+                          const distance = Math.sqrt(dx * dx + dy * dy);
+                          return { name, distance_km: Number(distance.toFixed(2)), opening_hours: "Unknown" };
+                      })
+                    : [];
+                return { query, category, places: places.slice(0, 12) };
+            },
+            60 * 60 * 1000,
+        ).catch(() => ({ query, category, places: [] as Array<{ name: string; distance_km: number; opening_hours: string }> }));
+        return jsonWithCache(result, 300, 1200);
     }
 
     if (slug[0] === "market" && slug[1] === "convert") {
@@ -765,8 +982,7 @@ async function handleGet(slug: string[], req: NextRequest) {
         const isFromCrypto = !fiat.includes(fromCurrency) && fromCurrency !== "USDT";
         const isToCrypto = !fiat.includes(toCurrency) && toCurrency !== "USDT";
 
-        const usdRates = await fetchJson("https://open.er-api.com/v6/latest/USD").catch(() => ({ rates: {} as Record<string, number> }));
-        const rates = (usdRates?.rates || {}) as Record<string, number>;
+        const rates = await getUsdRates().catch(() => ({} as Record<string, number>));
 
         async function toUsd(value: number, currency: string): Promise<number> {
             if (currency === "USD" || currency === "USDT") return value;
@@ -786,15 +1002,19 @@ async function handleGet(slug: string[], req: NextRequest) {
         const usd = await toUsd(amount, fromCurrency);
         const converted = await fromUsd(usd, toCurrency);
         const rate = amount !== 0 ? converted / amount : 0;
-        return NextResponse.json({
-            amount,
-            from_currency: fromCurrency,
-            to_currency: toCurrency,
-            rate,
-            converted,
-            source: isFromCrypto || isToCrypto ? "binance+open.er-api" : "open.er-api",
-            updated_at: nowIso(),
-        });
+        return jsonWithCache(
+            {
+                amount,
+                from_currency: fromCurrency,
+                to_currency: toCurrency,
+                rate,
+                converted,
+                source: isFromCrypto || isToCrypto ? "binance+open.er-api" : "open.er-api",
+                updated_at: nowIso(),
+            },
+            20,
+            90,
+        );
     }
 
     return NextResponse.json({ detail: "not_found" }, { status: 404 });
@@ -831,7 +1051,7 @@ async function handlePut(slug: string[], req: NextRequest) {
             state.openai_api_key = body.openai_api_key.trim();
         }
         state.updated_at = nowIso();
-        return NextResponse.json({ ok: true, settings: publicSettings(state) });
+        return NextResponse.json({ ok: true, settings: publicSettings(state) }, { headers: { "Cache-Control": "no-store" } });
     }
     return NextResponse.json({ detail: "not_found" }, { status: 404 });
 }
@@ -863,12 +1083,12 @@ async function handlePost(slug: string[], req: NextRequest) {
             status_message: message,
             calculated_at: nowIso(),
             encrypted_audit: "",
-        });
+        }, { headers: { "Cache-Control": "no-store" } });
     }
 
     if (slug[0] === "advisor" && slug[1] === "analyze") {
         const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-        return NextResponse.json(buildAdvisorFallback(body));
+        return NextResponse.json(buildAdvisorFallback(body), { headers: { "Cache-Control": "no-store" } });
     }
 
     if (slug[0] === "advisor" && slug[1] === "chat") {
@@ -902,7 +1122,7 @@ async function handlePost(slug: string[], req: NextRequest) {
                 const reply =
                     payload?.candidates?.[0]?.content?.parts?.[0]?.text ||
                     (locale === "vi" ? "Khong nhan duoc phan hoi." : locale === "es" ? "Sin respuesta del modelo." : "No model response.");
-                return NextResponse.json({ provider: "gemini", model, reply });
+                return NextResponse.json({ provider: "gemini", model, reply }, { headers: { "Cache-Control": "no-store" } });
             } catch {
                 return NextResponse.json({
                     provider: "gemini",
@@ -913,7 +1133,7 @@ async function handlePost(slug: string[], req: NextRequest) {
                             : locale === "es"
                               ? "Gemini fallo o sin cuota. Revisa API key."
                               : "Gemini failed or quota exceeded. Check API key.",
-                });
+                }, { headers: { "Cache-Control": "no-store" } });
             }
         }
 
@@ -934,7 +1154,7 @@ async function handlePost(slug: string[], req: NextRequest) {
                 const reply =
                     payload?.choices?.[0]?.message?.content ||
                     (locale === "vi" ? "Khong nhan duoc phan hoi." : locale === "es" ? "Sin respuesta del modelo." : "No model response.");
-                return NextResponse.json({ provider: "openai", model, reply });
+                return NextResponse.json({ provider: "openai", model, reply }, { headers: { "Cache-Control": "no-store" } });
             } catch {
                 return NextResponse.json({
                     provider: "openai",
@@ -945,7 +1165,7 @@ async function handlePost(slug: string[], req: NextRequest) {
                             : locale === "es"
                               ? "OpenAI fallo o sin cuota. Revisa API key."
                               : "OpenAI failed or quota exceeded. Check API key.",
-                });
+                }, { headers: { "Cache-Control": "no-store" } });
             }
         }
 
@@ -958,7 +1178,7 @@ async function handlePost(slug: string[], req: NextRequest) {
                     : locale === "es"
                       ? "Modo demo: agrega API key en Settings para chat IA real."
                       : "Demo mode: add API key in Settings for real AI chat.",
-        });
+        }, { headers: { "Cache-Control": "no-store" } });
     }
 
     if (slug[0] === "settings" && slug[1] === "rotate-secrets") {
@@ -970,7 +1190,7 @@ async function handlePost(slug: string[], req: NextRequest) {
             ok: true,
             rotated_providers: ["gemini", "openai"],
             settings: publicSettings(state),
-        });
+        }, { headers: { "Cache-Control": "no-store" } });
     }
 
     return NextResponse.json({ detail: "not_found" }, { status: 404 });

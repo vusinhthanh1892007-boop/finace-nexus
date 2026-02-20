@@ -77,10 +77,10 @@ export default function AnalyticsPage() {
 
     const t = labels[locale as keyof typeof labels] ?? labels.en;
 
-    const load = useCallback(async () => {
+    const load = useCallback(async (symbolsCsv: string) => {
         setLoading(true);
         try {
-            const items = symbols
+            const items = symbolsCsv
                 .split(",")
                 .map((s) => s.trim().toUpperCase())
                 .filter(Boolean)
@@ -92,10 +92,10 @@ export default function AnalyticsPage() {
         } finally {
             setLoading(false);
         }
-    }, [symbols]);
+    }, []);
 
     useEffect(() => {
-        void load();
+        void load(DEFAULT_SYMBOLS.join(","));
     }, [load]);
 
     const riskColor = useMemo(() => {
@@ -120,7 +120,7 @@ export default function AnalyticsPage() {
 
                 <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                     <input className="input" value={symbols} onChange={(e) => setSymbols(e.target.value.toUpperCase())} placeholder="BTC,ETH,SPX" />
-                    <button className="btn btn-primary" onClick={load}>{t.apply}</button>
+                    <button className="btn btn-primary" onClick={() => void load(symbols)}>{t.apply}</button>
                 </div>
                 <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", marginTop: 4 }}>{t.symbols}</div>
             </div>

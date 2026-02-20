@@ -9,12 +9,13 @@ export function useVisibilityPolling(task: PollTask, intervalMs: number) {
     useEffect(() => {
         let stopped = false;
         let controller: AbortController | null = null;
+        let inFlight = false;
 
         const run = async () => {
             if (stopped || document.hidden) return;
-
-            controller?.abort();
+            if (inFlight) return;
             controller = new AbortController();
+            inFlight = true;
 
             try {
                 await task(controller.signal);
@@ -22,6 +23,8 @@ export function useVisibilityPolling(task: PollTask, intervalMs: number) {
                 if (error instanceof DOMException && error.name === "AbortError") {
                     return;
                 }
+            } finally {
+                inFlight = false;
             }
         };
 

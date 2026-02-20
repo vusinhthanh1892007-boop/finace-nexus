@@ -197,7 +197,7 @@ export default function GlobalMapPage() {
 
     const fetchCountries = useCallback(async (signal: AbortSignal) => {
         try {
-            const res = await fetch("/api/market/countries", { signal, cache: "no-store" });
+            const res = await fetch("/api/market/countries", { signal });
             if (!res.ok) return;
             const payload = await res.json();
             const rows = Array.isArray(payload?.countries) ? payload.countries : [];

@@ -12,7 +12,6 @@ import {
 } from "@remixicon/react";
 import ThemeSwitcher from "@/components/theme/ThemeSwitcher";
 import LocaleSwitcher from "@/components/ui/LocaleSwitcher";
-import { isCryptoLikeSymbol, toBinanceSymbol } from "@/lib/marketSymbols";
 
 const AIAssistantPanel = dynamic(() => import("./AIAssistantPanel"), { ssr: false });
 
@@ -148,7 +147,7 @@ export default function TaskbarActions() {
         if (/^[A-Z0-9.\-^]{2,12}$/.test(normalized)) {
             setSearchLoading(true);
             try {
-                const res = await fetch(`/api/market/quote/${encodeURIComponent(normalized)}`, { cache: "no-store" });
+                const res = await fetch(`/api/market/quote/${encodeURIComponent(normalized)}`);
                 if (res.ok) {
                     const data = await res.json();
                     if (Number(data?.price || 0) > 0) {
@@ -158,23 +157,6 @@ export default function TaskbarActions() {
                             change_percent: Number(data.change_percent || 0),
                         });
                         return;
-                    }
-                }
-
-                if (isCryptoLikeSymbol(normalized)) {
-                    const pair = toBinanceSymbol(normalized);
-                    const cryptoRes = await fetch(`/api/market/binance/ticker/${encodeURIComponent(pair)}`, { cache: "no-store" });
-                    if (cryptoRes.ok) {
-                        const data = await cryptoRes.json();
-                        const lastPrice = Number(data?.last_price || 0);
-                        if (lastPrice > 0) {
-                            setQuoteResult({
-                                symbol: normalized,
-                                price: lastPrice,
-                                change_percent: Number(data?.price_change_percent || 0),
-                            });
-                            return;
-                        }
                     }
                 }
 

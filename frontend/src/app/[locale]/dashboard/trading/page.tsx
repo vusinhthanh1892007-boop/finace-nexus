@@ -807,7 +807,7 @@ export default function TradingPage() {
             if (!symbol) return;
             const res = await fetch(
                 `/api/market/candles/${encodeURIComponent(symbol)}?interval=${encodeURIComponent(interval)}&limit=220`,
-                { signal, cache: "no-store" },
+                { signal },
             );
             if (!res.ok) return;
             const payload = await res.json();
@@ -833,9 +833,9 @@ export default function TradingPage() {
             if (!pair) return;
 
             const [tickerRes, depthRes, tradesRes] = await Promise.all([
-                fetch(`/api/market/binance/ticker/${encodeURIComponent(pair)}`, { signal, cache: "no-store" }),
-                fetch(`/api/market/binance/depth/${encodeURIComponent(pair)}?limit=20`, { signal, cache: "no-store" }),
-                fetch(`/api/market/binance/trades/${encodeURIComponent(pair)}?limit=35`, { signal, cache: "no-store" }),
+                fetch(`/api/market/binance/ticker/${encodeURIComponent(pair)}`, { signal }),
+                fetch(`/api/market/binance/depth/${encodeURIComponent(pair)}?limit=20`, { signal }),
+                fetch(`/api/market/binance/trades/${encodeURIComponent(pair)}?limit=35`, { signal }),
             ]);
 
             if (tickerRes.ok) setBinanceTicker(await tickerRes.json());
@@ -845,8 +845,8 @@ export default function TradingPage() {
         [activeSymbol],
     );
 
-    useVisibilityPolling(refreshCandlesOnly, 12_000);
-    useVisibilityPolling(refreshBinanceWidgets, 3_000);
+    useVisibilityPolling(refreshCandlesOnly, 20_000);
+    useVisibilityPolling(refreshBinanceWidgets, 6_000);
 
     useEffect(() => {
         const symbol = activeSymbol.trim().toUpperCase();

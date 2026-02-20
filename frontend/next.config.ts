@@ -6,7 +6,8 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 const nextConfig: NextConfig = {
   outputFileTracingRoot: process.cwd(),
   async rewrites() {
-    if (process.env.USE_INTERNAL_API === "1") {
+    const useExternalProxy = process.env.USE_EXTERNAL_API === "1" || process.env.USE_INTERNAL_API === "0";
+    if (!useExternalProxy) {
       return [];
     }
     const monolith = process.env.API_BASE_URL || "http://localhost:8000";

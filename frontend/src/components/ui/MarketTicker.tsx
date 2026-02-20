@@ -10,7 +10,7 @@ import { FALLBACK_TICKER_DATA } from "@/lib/constants";
 import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 
 
-const POLL_INTERVAL_MS = 10_000;
+const POLL_INTERVAL_MS = 20_000;
 
 export default function MarketTicker() {
     const locale = useLocale();
@@ -18,7 +18,7 @@ export default function MarketTicker() {
 
     const fetchTicker = useCallback(async (signal: AbortSignal) => {
         try {
-            const res = await fetch("/api/market/indices", { signal, cache: "no-store" });
+            const res = await fetch("/api/market/indices", { signal });
             if (!res.ok) return;
             const payload = await res.json();
             const indices = Array.isArray(payload)
