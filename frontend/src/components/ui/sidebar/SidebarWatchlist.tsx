@@ -113,11 +113,24 @@ export default function SidebarWatchlist() {
                     }));
 
                 const bySymbol = new Map(mapped.map((item: WatchItem) => [item.symbol, item]));
-                const result = symbols.map((sym) => bySymbol.get(sym) ?? { symbol: sym, price: 0, change: 0 });
-                setWatchlist(result);
+                setWatchlist((prev) => {
+                    const prevBySymbol = new Map(prev.map((item) => [item.symbol, item]));
+                    return symbols.map((sym) => {
+                        const live = bySymbol.get(sym);
+                        if (live) return live;
+                        const previous = prevBySymbol.get(sym);
+                        if (previous && Number(previous.price) > 0) {
+                            return previous;
+                        }
+                        return { symbol: sym, price: 0, change: 0 };
+                    });
+                });
                 setBackendLive(mapped.length > 0);
             } catch {
-                setWatchlist(toFallback(symbols));
+                setWatchlist((prev) => {
+                    const prevBySymbol = new Map(prev.map((item) => [item.symbol, item]));
+                    return symbols.map((sym) => prevBySymbol.get(sym) ?? { symbol: sym, price: 0, change: 0 });
+                });
                 setBackendLive(false);
             }
         },
