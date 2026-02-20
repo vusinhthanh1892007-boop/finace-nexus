@@ -53,13 +53,6 @@ Nexus Finance es una plataforma financiera en tiempo real con cripto, acciones, 
 4. Set environment variable `USE_INTERNAL_API=1`.
 5. Deploy and open `https://your-project.vercel.app`.
 
-## Domain Options
-- Free, easiest: subdomain from platform deploy
-- Vercel: `your-project.vercel.app`
-- Netlify: `your-project.netlify.app`
-- Render: `your-project.onrender.com`
-- Railway: `your-project.up.railway.app`
-- Custom domain (professional): buy domain (`.com`, `.io`, `.ai`) and connect DNS in hosting dashboard
 ## Current Limitations (Vercel-only)
 - Settings/API keys are stored in serverless memory and can reset after cold start.
 - No Redis/SQLite persistence in this mode.
