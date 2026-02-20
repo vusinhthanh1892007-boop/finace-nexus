@@ -23,8 +23,8 @@ Nexus Finance es una plataforma financiera en tiempo real con cripto, acciones, 
 - Portfolio and analytics dashboard
 - Multi-language UI: Vietnamese, English, Spanish
 
-## Click Guide (Where to click)
-1. Open `https://your-domain.com`.
+## Click Guide 
+1. open web
 2. Top-right: choose language `VIE / EN / ES`.
 3. Left sidebar:
 - `Dashboard`: overview + market ticker
