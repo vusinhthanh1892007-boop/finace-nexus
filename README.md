@@ -64,6 +64,8 @@ Nexus Finance es una plataforma financiera en tiempo real con cripto, acciones, 
 - Settings/API keys are stored in serverless memory and can reset after cold start.
 - No Redis/SQLite persistence in this mode.
 - Heavy workloads and long-running tasks are limited by Vercel Hobby quotas.
+
+
                                       Thank you for visiting Nexus Finance. 🙌
                                       Cam on ban da ghe tham Nexus Finance. 💙
                                       Gracias por visitar Nexus Finance. 🚀
