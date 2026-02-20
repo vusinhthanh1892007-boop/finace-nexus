@@ -10,7 +10,7 @@ import { getStatusColor } from "@/lib/utils";
 import { useVisibilityPolling } from "@/lib/useVisibilityPolling";
 
 
-const POLL_INTERVAL_MS = 30_000;
+const POLL_INTERVAL_MS = 45_000;
 
 export default function SystemPulse() {
     const t = useTranslations("systemPulse");
@@ -30,8 +30,8 @@ export default function SystemPulse() {
             if (res.ok) {
                 const data = await res.json();
                 const payload = (data?.data ?? data) as Record<string, unknown>;
-                const geminiAvailable = Boolean(payload?.gemini_available);
-                const openaiAvailable = Boolean(payload?.openai_available);
+                const geminiAvailable = Boolean(payload?.gemini_available ?? payload?.gemini);
+                const openaiAvailable = Boolean(payload?.openai_available ?? payload?.openai);
                 const activeProviders = Array.isArray(payload?.active_ai_providers)
                     ? payload.active_ai_providers.map((x) => String(x))
                     : [];
