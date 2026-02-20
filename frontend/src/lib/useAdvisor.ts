@@ -153,27 +153,51 @@ const WEEKDAYS_BY_LOCALE = {
     es: ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"],
 } as const;
 
+function normalizeLocationText(value?: string) {
+    return String(value || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim();
+}
 
-function getLocationMultiplier(location?: string): number {
-    const q = String(location || "").toLowerCase();
-    if (!q) return 1;
-    if (q.includes("new york") || q.includes("united states") || q.includes("usa")) return 4.2;
-    if (q.includes("madrid") || q.includes("spain")) return 3.1;
-    if (q.includes("tokyo") || q.includes("japan")) return 3.4;
-    if (q.includes("hanoi") || q.includes("ha noi") || q.includes("ho chi minh") || q.includes("saigon")) return 1.2;
-    if (q.includes("da nang") || q.includes("danang")) return 1.0;
-    return 1;
+function tokenizeLocation(value?: string) {
+    const normalized = normalizeLocationText(value);
+    const tokens = normalized.replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean);
+    const compact = tokens.join("");
+    const tokenSet = new Set(tokens);
+    return { normalized, compact, tokenSet };
 }
 
 function detectRegion(location?: string, locale?: string): RegionKey {
-    const q = String(location || "").toLowerCase();
-    if (q.includes("new york") || q.includes("united states") || q.includes("usa")) return "us";
-    if (q.includes("madrid") || q.includes("barcelona") || q.includes("spain")) return "es";
-    if (q.includes("tokyo") || q.includes("osaka") || q.includes("japan")) return "jp";
-    if (q.includes("viet nam") || q.includes("vietnam") || q.includes("hanoi") || q.includes("ha noi") || q.includes("ho chi minh") || q.includes("da nang")) return "vn";
+    const q = normalizeLocationText(location);
+    const { compact, tokenSet } = tokenizeLocation(q);
+    if (
+        compact.includes("newyork") ||
+        compact.includes("unitedstates") ||
+        compact.includes("losangeles") ||
+        compact.includes("sanfrancisco") ||
+        tokenSet.has("us") ||
+        tokenSet.has("usa")
+    ) return "us";
+    if (compact.includes("madrid") || compact.includes("barcelona") || compact.includes("spain") || tokenSet.has("es")) return "es";
+    if (compact.includes("tokyo") || compact.includes("osaka") || compact.includes("japan") || tokenSet.has("jp")) return "jp";
+    if (
+        compact.includes("vietnam") ||
+        compact.includes("hanoi") ||
+        compact.includes("danang") ||
+        compact.includes("hochiminh") ||
+        compact.includes("saigon") ||
+        tokenSet.has("vn")
+    ) return "vn";
     if (locale === "vi") return "vn";
     if (locale === "es") return "es";
     return "us";
+}
+
+function getLocationMultiplier(location?: string, locale?: string): number {
+    const region = detectRegion(location, locale);
+    return REGION_MENUS[region].multiplier;
 }
 
 function buildMealPlan(familySize: number, locale: string, location?: string, mealSeed?: number): DailyMeal[] {
@@ -286,9 +310,9 @@ function clientSideAnalysis(input: AdvisorInput): AdvisorResult {
                 country_code: "",
                 lat: null,
                 lon: null,
-                local_price_multiplier: getLocationMultiplier(input.location),
-                average_restaurant_meal_vnd: Math.round(90000 * getLocationMultiplier(input.location)),
-                estimated_home_meal_per_person_vnd: Math.round(38000 * getLocationMultiplier(input.location)),
+                local_price_multiplier: getLocationMultiplier(input.location, input.locale),
+                average_restaurant_meal_vnd: Math.round(90000 * getLocationMultiplier(input.location, input.locale)),
+                estimated_home_meal_per_person_vnd: Math.round(38000 * getLocationMultiplier(input.location, input.locale)),
                 nearby_restaurants: 0,
                 nearby_examples: [],
                 note:

@@ -145,6 +145,35 @@ function toYahooSymbol(symbol: string) {
     return s;
 }
 
+function toStooqSymbol(symbol: string) {
+    const s = normalizeSymbol(symbol);
+    if (s === "GOLD") return "GC.F";
+    if (s === "BTC") return "BTCUSD";
+    if (s === "ETH") return "ETHUSD";
+    if (s === "EURUSD") return "EURUSD";
+    if (s === "USDVND") return "USDVND";
+    if (s === "SPX") return "SPX.US";
+    if (s === "DOW") return "DJI.US";
+    if (/^[A-Z0-9]{1,6}$/.test(s)) return `${s}.US`;
+    return s;
+}
+
+function normalizeLocationText(value: string) {
+    return String(value || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim();
+}
+
+function tokenizeLocation(value: string) {
+    const normalized = normalizeLocationText(value);
+    const tokens = normalized.replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean);
+    const compact = tokens.join("");
+    const tokenSet = new Set(tokens);
+    return { normalized, tokens, compact, tokenSet };
+}
+
 function clampNumber(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
 }
@@ -265,6 +294,22 @@ async function fetchJson(url: string, init?: RequestInit, timeoutMs = DEFAULT_FE
     return res.json();
 }
 
+async function fetchText(url: string, init?: RequestInit, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), Math.max(1000, timeoutMs));
+    const initSignal = init?.signal;
+    const signal =
+        initSignal && typeof AbortSignal !== "undefined" && typeof AbortSignal.any === "function"
+            ? AbortSignal.any([initSignal, controller.signal])
+            : controller.signal;
+
+    const res = await fetch(url, { ...init, signal, cache: "no-store" }).finally(() => clearTimeout(timer));
+    if (!res.ok) {
+        throw new Error(`${res.status}`);
+    }
+    return res.text();
+}
+
 async function getBinanceTicker(pair: string) {
     const normalizedPair = normalizeSymbol(pair);
     return withCache(
@@ -300,6 +345,38 @@ async function getBinanceTicker(pair: string) {
     );
 }
 
+async function getStooqQuote(symbol: string) {
+    const s = normalizeSymbol(symbol);
+    const stooqSymbol = toStooqSymbol(s);
+    const rawText = await fetchText(
+        `https://stooq.com/q/l/?s=${encodeURIComponent(stooqSymbol.toLowerCase())}&i=d`,
+        undefined,
+        5000,
+    );
+    const line = String(rawText || "").trim().split("\n")[0] || "";
+    const cells = line.split(",");
+    if (cells.length < 8) return null;
+    const open = Number(cells[3] || 0);
+    const high = Number(cells[4] || 0);
+    const low = Number(cells[5] || 0);
+    const close = Number(cells[6] || 0);
+    const volume = Number(cells[7] || 0);
+    if (!Number.isFinite(close) || close <= 0) return null;
+    const change = Number.isFinite(open) && open > 0 ? close - open : 0;
+    const changePct = Number.isFinite(open) && open > 0 ? (change / open) * 100 : 0;
+    return {
+        symbol: s,
+        name: s,
+        price: close,
+        change,
+        change_percent: changePct,
+        day_high: Number.isFinite(high) && high > 0 ? high : close,
+        day_low: Number.isFinite(low) && low > 0 ? low : close,
+        volume: Number.isFinite(volume) ? volume : 0,
+        source: "stooq",
+    };
+}
+
 async function getQuote(symbol: string) {
     const s = normalizeSymbol(symbol);
     if (!s) {
@@ -322,31 +399,35 @@ async function getQuote(symbol: string) {
         };
     }
 
-    const ySymbol = toYahooSymbol(s);
     return withCache(
-        `yahoo:quote:${ySymbol}`,
+        `quote:${s}`,
         12000,
         async () => {
-            const payload = await fetchJson(
-                `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ySymbol)}`,
-                undefined,
-                5500,
-            );
-            const row = payload?.quoteResponse?.result?.[0];
-            if (!row) {
-                return null;
+            const ySymbol = toYahooSymbol(s);
+            try {
+                const payload = await fetchJson(
+                    `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ySymbol)}`,
+                    undefined,
+                    5500,
+                );
+                const row = payload?.quoteResponse?.result?.[0];
+                if (row) {
+                    return {
+                        symbol: s,
+                        name: String(row.shortName || row.longName || s),
+                        price: Number(row.regularMarketPrice || 0),
+                        change: Number(row.regularMarketChange || 0),
+                        change_percent: Number(row.regularMarketChangePercent || 0),
+                        day_high: Number(row.regularMarketDayHigh || 0),
+                        day_low: Number(row.regularMarketDayLow || 0),
+                        volume: Number(row.regularMarketVolume || 0),
+                        source: "yahoo",
+                    };
+                }
+            } catch {
+                // fallback below
             }
-            return {
-                symbol: s,
-                name: String(row.shortName || row.longName || s),
-                price: Number(row.regularMarketPrice || 0),
-                change: Number(row.regularMarketChange || 0),
-                change_percent: Number(row.regularMarketChangePercent || 0),
-                day_high: Number(row.regularMarketDayHigh || 0),
-                day_low: Number(row.regularMarketDayLow || 0),
-                volume: Number(row.regularMarketVolume || 0),
-                source: "yahoo",
-            };
+            return getStooqQuote(s);
         },
         45000,
     );
@@ -471,13 +552,28 @@ type AdvisorRegionProfile = {
 };
 
 function detectCountryByLocation(locationText: string) {
-    const q = locationText.toLowerCase();
+    const q = normalizeLocationText(locationText);
     if (!q) return "";
-    if (q.includes("new york") || q.includes("san francisco") || q.includes("los angeles") || q.includes("united states") || q.includes(" usa")) return "US";
-    if (q.includes("viet nam") || q.includes("vietnam") || q.includes("ha noi") || q.includes("hanoi") || q.includes("ho chi minh") || q.includes("da nang") || q.includes("danang")) return "VN";
-    if (q.includes("madrid") || q.includes("barcelona") || q.includes("spain") || q.includes("espan")) return "ES";
-    if (q.includes("tokyo") || q.includes("osaka") || q.includes("japan")) return "JP";
-    if (q.includes("london") || q.includes("united kingdom") || q.includes("uk")) return "GB";
+    const { compact, tokenSet } = tokenizeLocation(q);
+    if (
+        compact.includes("newyork") ||
+        compact.includes("sanfrancisco") ||
+        compact.includes("losangeles") ||
+        compact.includes("unitedstates") ||
+        tokenSet.has("us") ||
+        tokenSet.has("usa")
+    ) return "US";
+    if (
+        compact.includes("vietnam") ||
+        compact.includes("hanoi") ||
+        compact.includes("hochiminh") ||
+        compact.includes("danang") ||
+        compact.includes("saigon") ||
+        tokenSet.has("vn")
+    ) return "VN";
+    if (compact.includes("madrid") || compact.includes("barcelona") || compact.includes("spain") || tokenSet.has("es")) return "ES";
+    if (compact.includes("tokyo") || compact.includes("osaka") || compact.includes("japan") || tokenSet.has("jp")) return "JP";
+    if (compact.includes("london") || compact.includes("unitedkingdom") || tokenSet.has("uk") || tokenSet.has("gb")) return "GB";
     return "";
 }
 
