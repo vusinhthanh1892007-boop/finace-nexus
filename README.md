@@ -1,6 +1,10 @@
 # Nexus Finance
 
-Live Demo: `https://your-domain.com`
+Live Demo: 
+finace-nexus.vercel.app
+finace-nexus-git-main-vusinhthanh1892007-boops-projects.vercel.app
+finace-nexus-qchj1vvgi-vusinhthanh1892007-boops-projects.vercel.app
+
 
 ## VI
 Nexus Finance là nền tảng theo dõi tài chính và thị trường theo thời gian thực: crypto, cổ phiếu, forex, AI Advisor, bản đồ toàn cầu và giao dịch.
