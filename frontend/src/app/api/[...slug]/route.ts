@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import countriesFallback from "@/data/countries-fallback.json";
 
 export const runtime = "nodejs";
-export const preferredRegion = "auto";
+export const preferredRegion = ["sin1", "iad1"];
 
 type RiskTolerance = "conservative" | "moderate" | "aggressive";
 type AIProvider = "auto" | "gemini" | "openai";
