@@ -152,8 +152,8 @@ function toStooqSymbol(symbol: string) {
     if (s === "ETH") return "ETHUSD";
     if (s === "EURUSD") return "EURUSD";
     if (s === "USDVND") return "USDVND";
-    if (s === "SPX") return "SPX.US";
-    if (s === "DOW") return "DJI.US";
+    if (s === "SPX") return "^SPX";
+    if (s === "DOW") return "^DJI";
     if (/^[A-Z0-9]{1,6}$/.test(s)) return `${s}.US`;
     return s;
 }
@@ -427,7 +427,27 @@ async function getQuote(symbol: string) {
             } catch {
                 // fallback below
             }
-            return getStooqQuote(s);
+            const stooq = await getStooqQuote(s).catch(() => null);
+            if (stooq) return stooq;
+
+            if (s === "USDVND") {
+                const rates = await getUsdRates().catch(() => ({} as Record<string, number>));
+                const vnd = Number(rates.VND || 0);
+                if (Number.isFinite(vnd) && vnd > 0) {
+                    return {
+                        symbol: s,
+                        name: "USD/VND",
+                        price: vnd,
+                        change: 0,
+                        change_percent: 0,
+                        day_high: vnd,
+                        day_low: vnd,
+                        volume: 0,
+                        source: "open.er-api",
+                    };
+                }
+            }
+            return null;
         },
         45000,
     );
