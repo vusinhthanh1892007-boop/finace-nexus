@@ -34,12 +34,6 @@ Nexus Finance es una plataforma financiera en tiempo real con cripto, acciones, 
 - `Analytics`: volatility, momentum, correlation
 - `Trading`: chart, indicators, watchlist, pair search
 - `Settings`: API keys, AI provider/model, system options
-
-## Direct URLs
-- `https://your-domain.com/vi/dashboard`
-- `https://your-domain.com/en/dashboard`
-- `https://your-domain.com/es/dashboard`
-
 ## Run Local
 1. Open 2 terminals at project root.
 2. Terminal 1:
@@ -66,13 +60,11 @@ Nexus Finance es una plataforma financiera en tiempo real con cripto, acciones, 
 - Render: `your-project.onrender.com`
 - Railway: `your-project.up.railway.app`
 - Custom domain (professional): buy domain (`.com`, `.io`, `.ai`) and connect DNS in hosting dashboard
-
-## Thanks
-- Thank you for visiting Nexus Finance. 🙌
-- Cam on ban da ghe tham Nexus Finance. 💙
-- Gracias por visitar Nexus Finance. 🚀
-
 ## Current Limitations (Vercel-only)
 - Settings/API keys are stored in serverless memory and can reset after cold start.
 - No Redis/SQLite persistence in this mode.
 - Heavy workloads and long-running tasks are limited by Vercel Hobby quotas.
+                                      Thank you for visiting Nexus Finance. 🙌
+                                      Cam on ban da ghe tham Nexus Finance. 💙
+                                      Gracias por visitar Nexus Finance. 🚀
+
