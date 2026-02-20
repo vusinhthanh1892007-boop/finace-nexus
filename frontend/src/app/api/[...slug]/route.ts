@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
-export const preferredRegion = ["sin1", "hkg1", "nrt1", "iad1"];
+export const preferredRegion = "hkg1";
 
 type RiskTolerance = "conservative" | "moderate" | "aggressive";
 type AIProvider = "auto" | "gemini" | "openai";
