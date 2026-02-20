@@ -1,0 +1,110 @@
+{
+    "nav": {
+        "dashboard": "Panel",
+        "market": "Mercado",
+        "settings": "Ajustes",
+        "advisor": "Asesor IA",
+        "global_map": "Mapa Global",
+        "portfolio": "Portafolio",
+        "analytics": "Analitica",
+        "market_news": "Noticias de Mercado",
+        "analysis": "Analisis",
+        "market_section": "Mercado",
+        "trading": "Comercio",
+        "collapse": "Colapsar",
+        "expand": "Expandir"
+    },
+    "header": {
+        "greeting": "Bienvenido de nuevo",
+        "logout": "Cerrar sesión"
+    },
+    "dashboard": {
+        "title": "Libro Mayor",
+        "subtitle": "Rastrea tus ingresos, gastos y presupuesto en tiempo real",
+        "income": "Ingresos",
+        "expenses": "Gastos Reales",
+        "budget": "Presupuesto",
+        "safeToSpend": "Seguro para Gastar",
+        "utilization": "Utilización",
+        "remaining": "Restante",
+        "savings": "Ahorros",
+        "updating": "Actualizando...",
+        "status": {
+            "healthy": "Saludable",
+            "warning": "Advertencia",
+            "critical": "Crítico",
+            "over_budget": "Sobre Presupuesto"
+        }
+    },
+    "advisor": {
+        "title": "Asesor Financiero IA",
+        "verdict": "Veredicto del Guru",
+        "health_score": "Puntuación de Salud",
+        "savings_rate": "Tasa de Ahorro",
+        "advice": "Consejo del Guru",
+        "wasteful": "Hábitos Dispendiosos",
+        "family": "Tamaño Familiar",
+        "subtitle": "Obtenga asesoramiento financiero personalizado basado en sus hábitos de gasto.",
+        "meal_plan": "Plan de Comidas de 7 Días",
+        "asset_allocation": "Cartera del Mercado Global",
+        "avg_food_cost": "Costo prom. comida",
+        "day": "Día",
+        "breakfast": "Desayuno",
+        "lunch": "Almuerzo",
+        "dinner": "Cena",
+        "total": "Total",
+        "week_total": "Total Semanal",
+        "invest": "Cap. Global",
+        "no_investment": "No hay datos de mercado disponibles."
+    },
+    "trading": {
+        "title": "Simulador de Comercio",
+        "balance": "Saldo de Efectivo",
+        "portfolio": "Valor del Portafolio",
+        "pnl": "P&L Total",
+        "buy": "Comprar",
+        "sell": "Vender",
+        "shares": "Acciones",
+        "price": "Precio",
+        "cost": "Costo Est.",
+        "fee": "Tarifa (0.15%)",
+        "confirm": "Confirmar Orden",
+        "history": "Historial de Operaciones",
+        "market_closed": "Mercado Cerrado"
+    },
+    "common": {
+        "loading": "Cargando...",
+        "error": "Ocurrió un error",
+        "success": "Éxito",
+        "copy": "Copiar",
+        "copied": "¡Copiado!"
+    },
+  "sidebar": {
+    "watchlist": "Lista de Seguimiento",
+    "health": "Salud",
+    "profile": "Perfil",
+    "no_live_data": "Sin datos de precio en vivo"
+  },
+    "systemPulse": {
+        "backend": "Servidor",
+        "latency": "Latencia",
+        "aiApis": "APIs de IA",
+        "active": "Activo",
+        "inactive": "Inactivo",
+        "status": {
+            "healthy": "Saludable",
+            "degraded": "Degradado",
+            "offline": "Sin conexión"
+        }
+    },
+    "scolding": {
+        "title": "🚨 ¡ADVERTENCIA DEL GURU!",
+        "gaming": "¿Jugando otra vez? ¿Planeas vivir de fideos? 🍜",
+        "luxury": "¿Compras de lujo? ¡Tu billetera está llorando! 💸",
+        "acknowledge": "¡Entendido! 😅",
+        "waste_alert": "¡\"{category}\" excede 10M VND!"
+    },
+    "footer": {
+        "made_with_love": "Hecho con ❤️ en Vietnam"
+    }
+}

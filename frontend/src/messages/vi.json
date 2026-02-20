@@ -1,0 +1,110 @@
+{
+    "nav": {
+        "dashboard": "Bảng điều khiển",
+        "market": "Thị trường",
+        "settings": "Cài đặt",
+        "advisor": "Cố vấn AI",
+        "global_map": "Bản đồ toàn cầu",
+        "portfolio": "Danh mục",
+        "analytics": "Phân tích",
+        "market_news": "Tin tức thị trường",
+        "analysis": "Phân tích",
+        "market_section": "Thị trường",
+        "trading": "Giao dịch",
+        "collapse": "Thu gọn",
+        "expand": "Mở rộng"
+    },
+    "header": {
+        "greeting": "Chào mừng trở lại",
+        "logout": "Đăng xuất"
+    },
+    "dashboard": {
+        "title": "Sổ cái tài chính",
+        "subtitle": "Theo dõi thu nhập, chi tiêu và ngân sách theo thời gian thực",
+        "income": "Thu nhập",
+        "expenses": "Chi tiêu thực tế",
+        "budget": "Ngân sách",
+        "safeToSpend": "An toàn chi tiêu",
+        "utilization": "Sử dụng",
+        "remaining": "Còn lại",
+        "savings": "Tiết kiệm",
+        "updating": "Đang cập nhật...",
+        "status": {
+            "healthy": "Tốt",
+            "warning": "Cảnh báo",
+            "critical": "Nguy hiểm",
+            "over_budget": "Vượt ngân sách"
+        }
+    },
+    "advisor": {
+        "title": "Cố vấn Tài chính AI",
+        "verdict": "Phán quyết của Guru",
+        "health_score": "Điểm sức khỏe",
+        "savings_rate": "Tỷ lệ tiết kiệm",
+        "advice": "Lời khuyên của Guru",
+        "wasteful": "Thói quen lãng phí",
+        "family": "Số thành viên",
+        "subtitle": "Nhận lời khuyên tài chính cá nhân hóa dựa trên thói quen chi tiêu của bạn.",
+        "meal_plan": "Thực đơn 7 ngày",
+        "asset_allocation": "Danh mục đầu tư toàn cầu",
+        "avg_food_cost": "Chi phí ăn uống TB",
+        "day": "Ngày",
+        "breakfast": "Sáng",
+        "lunch": "Trưa",
+        "dinner": "Tối",
+        "total": "Tổng",
+        "week_total": "Tổng tuần",
+        "invest": "Vốn hóa",
+        "no_investment": "Không có dữ liệu thị trường."
+    },
+    "trading": {
+        "title": "Giả lập giao dịch",
+        "balance": "Số dư tiền mặt",
+        "portfolio": "Giá trị danh mục",
+        "pnl": "Lãi/Lỗ tổng",
+        "buy": "Mua",
+        "sell": "Bán",
+        "shares": "Cổ phiếu",
+        "price": "Giá",
+        "cost": "Ước tính",
+        "fee": "Phí (0.15%)",
+        "confirm": "Xác nhận lệnh",
+        "history": "Lịch sử giao dịch",
+        "market_closed": "Thị trường đóng cửa"
+    },
+    "common": {
+        "loading": "Đang tải...",
+        "error": "Đã xảy ra lỗi",
+        "success": "Thành công",
+        "copy": "Sao chép",
+        "copied": "Đã chép!"
+    },
+  "sidebar": {
+    "watchlist": "Theo dõi",
+    "health": "Sức khỏe TC",
+    "profile": "Hồ sơ",
+    "no_live_data": "Chưa có dữ liệu giá live"
+  },
+    "systemPulse": {
+        "backend": "Máy chủ",
+        "latency": "Độ trễ",
+        "aiApis": "API AI",
+        "active": "Hoạt động",
+        "inactive": "Không hoạt động",
+        "status": {
+            "healthy": "Tốt",
+            "degraded": "Suy giảm",
+            "offline": "Ngoại tuyến"
+        }
+    },
+    "scolding": {
+        "title": "🚨 CẢNH BÁO TỪ GURU!",
+        "gaming": "Định ăn mì tôm cả tháng để lên Vip à? 🍜",
+        "luxury": "Mua đồ xa xỉ? Ví tiền của bạn đang khóc kìa! 💸",
+        "acknowledge": "Tôi đã hiểu! 😅",
+        "waste_alert": "\"{category}\" tiêu tốn hơn 10 triệu!"
+    },
+    "footer": {
+        "made_with_love": "Được làm bằng ❤️ tại Việt Nam"
+    }
+}

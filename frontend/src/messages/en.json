@@ -1,0 +1,110 @@
+{
+    "nav": {
+        "dashboard": "Dashboard",
+        "market": "Market",
+        "settings": "Settings",
+        "advisor": "AI Advisor",
+        "global_map": "Global Map",
+        "portfolio": "Portfolio",
+        "analytics": "Analytics",
+        "market_news": "Market News",
+        "analysis": "Analysis",
+        "market_section": "Market",
+        "trading": "Trading",
+        "collapse": "Collapse",
+        "expand": "Expand"
+    },
+    "header": {
+        "greeting": "Welcome back",
+        "logout": "Logout"
+    },
+    "dashboard": {
+        "title": "Financial Ledger",
+        "subtitle": "Track your income, expenses, and budget in real-time",
+        "income": "Income",
+        "expenses": "Actual Expenses",
+        "budget": "Planned Budget",
+        "safeToSpend": "Safe to Spend",
+        "utilization": "Utilization",
+        "remaining": "Remaining",
+        "savings": "Savings",
+        "updating": "Updating...",
+        "status": {
+            "healthy": "Healthy",
+            "warning": "Warning",
+            "critical": "Critical",
+            "over_budget": "Over Budget"
+        }
+    },
+    "advisor": {
+        "title": "AI Financial Advisor",
+        "verdict": "Guru's Verdict",
+        "health_score": "Health Score",
+        "savings_rate": "Savings Rate",
+        "advice": "Guru's Advice",
+        "wasteful": "Wasteful Habits",
+        "family": "Family Size",
+        "subtitle": "Get personalized financial advice based on your spending habits.",
+        "meal_plan": "7-Day Meal Plan",
+        "asset_allocation": "Global Market Portfolio",
+        "avg_food_cost": "Avg. food cost",
+        "day": "Day",
+        "breakfast": "Breakfast",
+        "lunch": "Lunch",
+        "dinner": "Dinner",
+        "total": "Total",
+        "week_total": "Weekly Total",
+        "invest": "Global Cap",
+        "no_investment": "No market data available."
+    },
+    "trading": {
+        "title": "Trading Simulator",
+        "balance": "Cash Balance",
+        "portfolio": "Portfolio Value",
+        "pnl": "Total P&L",
+        "buy": "Buy",
+        "sell": "Sell",
+        "shares": "Shares",
+        "price": "Price",
+        "cost": "Est. Cost",
+        "fee": "Fee (0.15%)",
+        "confirm": "Confirm Trade",
+        "history": "Trade History",
+        "market_closed": "Market Closed"
+    },
+    "common": {
+        "loading": "Loading...",
+        "error": "An error occurred",
+        "success": "Success",
+        "copy": "Copy",
+        "copied": "Copied!"
+    },
+  "sidebar": {
+    "watchlist": "Watchlist",
+    "health": "Health",
+    "profile": "Profile",
+    "no_live_data": "No live pricing data"
+  },
+    "systemPulse": {
+        "backend": "Backend",
+        "latency": "Latency",
+        "aiApis": "AI APIs",
+        "active": "Active",
+        "inactive": "Inactive",
+        "status": {
+            "healthy": "Healthy",
+            "degraded": "Degraded",
+            "offline": "Offline"
+        }
+    },
+    "scolding": {
+        "title": "🚨 GURU WARNING!",
+        "gaming": "Gaming again? Planning to live on instant noodles? 🍜",
+        "luxury": "Luxury shopping? Your wallet is crying! 💸",
+        "acknowledge": "I understand! 😅",
+        "waste_alert": "\"{category}\" exceeds 10M VND!"
+    },
+    "footer": {
+        "made_with_love": "Made with ❤️ in Vietnam"
+    }
+}

@@ -1,0 +1,75 @@
+services:
+  market-service:
+    build:
+      context: ./backend
+    container_name: nexus-market-service
+    command: uvicorn app.main_market:app --host 0.0.0.0 --port 8001
+    environment:
+      - DEBUG=true
+      - CORS_ORIGINS=http://localhost:3000,http://frontend:3000
+      - DATABASE_PATH=/app/data/finance.db
+      - REDIS_URL=redis://redis:6379/0
+      - RATE_LIMIT_FAIL_OPEN=false
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./backend/data:/app/data
+    depends_on:
+      - redis
+
+  advisor-service:
+    build:
+      context: ./backend
+    container_name: nexus-advisor-service
+    command: uvicorn app.main_advisor:app --host 0.0.0.0 --port 8002
+    environment:
+      - DEBUG=true
+      - CORS_ORIGINS=http://localhost:3000,http://frontend:3000
+      - DATABASE_PATH=/app/data/finance.db
+      - REDIS_URL=redis://redis:6379/0
+      - RATE_LIMIT_FAIL_OPEN=false
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./backend/data:/app/data
+    depends_on:
+      - redis
+
+  settings-service:
+    build:
+      context: ./backend
+    container_name: nexus-settings-service
+    command: uvicorn app.main_settings:app --host 0.0.0.0 --port 8003
+    environment:
+      - DEBUG=true
+      - CORS_ORIGINS=http://localhost:3000,http://frontend:3000
+      - DATABASE_PATH=/app/data/finance.db
+      - REDIS_URL=redis://redis:6379/0
+      - RATE_LIMIT_FAIL_OPEN=false
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./backend/data:/app/data
+    depends_on:
+      - redis
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: nexus-frontend
+    environment:
+      - MARKET_API_URL=http://market-service:8001
+      - ADVISOR_API_URL=http://advisor-service:8002
+      - SETTINGS_API_URL=http://settings-service:8003
+    ports:
+      - "3000:3000"
+    depends_on:
+      - market-service
+      - advisor-service
+      - settings-service
+
+  redis:
+    image: redis:7-alpine
+    container_name: nexus-redis
+    ports:
+      - "6379:6379"

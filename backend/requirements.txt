@@ -1,0 +1,16 @@
+# Core Framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-dotenv==1.0.1
+pydantic-settings==2.7.1
+
+# Financial Data
+# openbb==4.4.1  <-- Commented out due to Python 3.12 conflict. App will use Mock Fallback.
+# pandas is intentionally omitted because backend runtime does not use it directly.
+
+# HTTP Client
+httpx==0.28.1
+redis==5.2.1
+
+# Security
+python-jose[cryptography]==3.3.0
