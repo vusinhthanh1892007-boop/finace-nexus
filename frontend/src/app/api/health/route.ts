@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 export const runtime = "edge";
-export const preferredRegion = "global";
 
 export async function GET() {
     const env = typeof process !== "undefined" ? process.env : ({} as Record<string, string | undefined>);
