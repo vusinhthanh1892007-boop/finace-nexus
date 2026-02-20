@@ -56,35 +56,96 @@ function buildVerdict(score: number, savingsRate: number, utilization: number, l
 }
 
 
-const BREAKFASTS: Array<Omit<MealItem, "cost"> & { unitCost: number }> = [
-    { name: "Bánh mì trứng", unitCost: 20_000, description: "Egg bread" },
-    { name: "Phở bò", unitCost: 45_000, description: "Beef pho" },
-    { name: "Bún bò Huế", unitCost: 40_000, description: "Hue noodles" },
-    { name: "Xôi gà", unitCost: 25_000, description: "Sticky rice" },
-    { name: "Cháo gà", unitCost: 25_000, description: "Chicken porridge" },
-    { name: "Bánh cuốn", unitCost: 30_000, description: "Rice rolls" },
-    { name: "Bún chả", unitCost: 40_000, description: "Grilled pork noodles" },
-];
+type MenuSeedItem = Omit<MealItem, "cost"> & { unitCost: number };
+type RegionKey = "vn" | "us" | "es" | "jp";
 
-const LUNCHES: Array<Omit<MealItem, "cost"> & { unitCost: number }> = [
-    { name: "Cơm tấm sườn", unitCost: 45_000, description: "Broken rice" },
-    { name: "Bún thịt nướng", unitCost: 40_000, description: "Grilled meat noodles" },
-    { name: "Cơm gà xối mỡ", unitCost: 45_000, description: "Crispy chicken rice" },
-    { name: "Mì Quảng", unitCost: 35_000, description: "Quang noodles" },
-    { name: "Cơm văn phòng", unitCost: 35_000, description: "Office lunch" },
-    { name: "Hủ tiếu Nam Vang", unitCost: 40_000, description: "PP noodle soup" },
-    { name: "Bún riêu cua", unitCost: 35_000, description: "Crab noodle soup" },
-];
-
-const DINNERS: MealItem[] = [
-    { name: "Cơm nhà nấu", cost: 150_000, description: "Fish, veggies, soup" },
-    { name: "Cơm nhà nấu", cost: 120_000, description: "Braised pork, greens" },
-    { name: "Cơm nhà nấu", cost: 180_000, description: "Grilled chicken, tofu" },
-    { name: "Cơm nhà nấu", cost: 130_000, description: "Eggs, stir-fry, soup" },
-    { name: "Cơm nhà nấu", cost: 160_000, description: "Steamed fish, beans" },
-    { name: "Cơm nhà nấu", cost: 140_000, description: "Pork belly, melon" },
-    { name: "Cơm nhà nấu", cost: 170_000, description: "Beef stew, greens" },
-];
+const REGION_MENUS: Record<RegionKey, { multiplier: number; breakfasts: MenuSeedItem[]; lunches: MenuSeedItem[]; dinners: MealItem[] }> = {
+    vn: {
+        multiplier: 1,
+        breakfasts: [
+            { name: "Banh mi trung", unitCost: 20_000, description: "Egg bread" },
+            { name: "Pho bo", unitCost: 45_000, description: "Beef pho" },
+            { name: "Bun bo Hue", unitCost: 40_000, description: "Hue noodles" },
+            { name: "Xoi ga", unitCost: 25_000, description: "Sticky rice" },
+            { name: "Chao ga", unitCost: 25_000, description: "Chicken porridge" },
+            { name: "Banh cuon", unitCost: 30_000, description: "Rice rolls" },
+            { name: "Bun cha", unitCost: 40_000, description: "Grilled pork noodles" },
+        ],
+        lunches: [
+            { name: "Com tam suon", unitCost: 45_000, description: "Broken rice" },
+            { name: "Bun thit nuong", unitCost: 40_000, description: "Grilled meat noodles" },
+            { name: "Com ga xoi mo", unitCost: 45_000, description: "Crispy chicken rice" },
+            { name: "Mi Quang", unitCost: 35_000, description: "Quang noodles" },
+            { name: "Com van phong", unitCost: 35_000, description: "Office lunch" },
+            { name: "Hu tieu Nam Vang", unitCost: 40_000, description: "PP noodle soup" },
+            { name: "Bun rieu cua", unitCost: 35_000, description: "Crab noodle soup" },
+        ],
+        dinners: [
+            { name: "Com nha nau", cost: 150_000, description: "Fish, veggies, soup" },
+            { name: "Com nha nau", cost: 120_000, description: "Braised pork, greens" },
+            { name: "Com nha nau", cost: 180_000, description: "Grilled chicken, tofu" },
+            { name: "Com nha nau", cost: 130_000, description: "Eggs, stir-fry, soup" },
+            { name: "Com nha nau", cost: 160_000, description: "Steamed fish, beans" },
+        ],
+    },
+    us: {
+        multiplier: 4.2,
+        breakfasts: [
+            { name: "Bagel and eggs", unitCost: 120_000, description: "Protein breakfast" },
+            { name: "Oatmeal bowl", unitCost: 110_000, description: "Whole grains and fruit" },
+            { name: "Greek yogurt bowl", unitCost: 100_000, description: "Yogurt and berries" },
+            { name: "Pancake set", unitCost: 135_000, description: "Pancakes and fruits" },
+        ],
+        lunches: [
+            { name: "Turkey sandwich", unitCost: 190_000, description: "Whole wheat sandwich" },
+            { name: "Chicken salad", unitCost: 210_000, description: "Lean protein salad" },
+            { name: "Burrito bowl", unitCost: 230_000, description: "Rice and protein bowl" },
+            { name: "Pasta lunch set", unitCost: 240_000, description: "Pasta and vegetables" },
+        ],
+        dinners: [
+            { name: "Grilled salmon set", cost: 480_000, description: "Salmon, rice, vegetables" },
+            { name: "Steak and veggies", cost: 540_000, description: "Steak with sides" },
+            { name: "Chicken rice bowl", cost: 420_000, description: "Chicken and mixed greens" },
+            { name: "Pasta and meatballs", cost: 460_000, description: "Balanced dinner" },
+        ],
+    },
+    es: {
+        multiplier: 3.1,
+        breakfasts: [
+            { name: "Tostada con huevo", unitCost: 95_000, description: "Toast and eggs" },
+            { name: "Yogur con fruta", unitCost: 85_000, description: "Yogurt and fruit" },
+            { name: "Avena", unitCost: 80_000, description: "Oatmeal bowl" },
+        ],
+        lunches: [
+            { name: "Pollo con arroz", unitCost: 170_000, description: "Chicken rice set" },
+            { name: "Pasta mediterranea", unitCost: 180_000, description: "Pasta and vegetables" },
+            { name: "Ensalada con atun", unitCost: 165_000, description: "Tuna salad" },
+        ],
+        dinners: [
+            { name: "Pescado al horno", cost: 320_000, description: "Baked fish and salad" },
+            { name: "Tortilla espanola", cost: 280_000, description: "Potato omelette and soup" },
+            { name: "Pollo a la plancha", cost: 300_000, description: "Grilled chicken dinner" },
+        ],
+    },
+    jp: {
+        multiplier: 3.4,
+        breakfasts: [
+            { name: "Onigiri and miso soup", unitCost: 100_000, description: "Rice ball set" },
+            { name: "Tamago and rice", unitCost: 105_000, description: "Egg and rice" },
+            { name: "Tofu breakfast", unitCost: 95_000, description: "Tofu and greens" },
+        ],
+        lunches: [
+            { name: "Bento chicken", unitCost: 180_000, description: "Bento style meal" },
+            { name: "Ramen set", unitCost: 190_000, description: "Ramen with side dish" },
+            { name: "Curry rice", unitCost: 175_000, description: "Japanese curry" },
+        ],
+        dinners: [
+            { name: "Grilled fish set", cost: 340_000, description: "Fish, rice, vegetables" },
+            { name: "Teriyaki chicken", cost: 320_000, description: "Chicken and salad" },
+            { name: "Hotpot dinner", cost: 360_000, description: "Shared hotpot meal" },
+        ],
+    },
+};
 
 const WEEKDAYS_BY_LOCALE = {
     vi: ["T2", "T3", "T4", "T5", "T6", "T7", "CN"],
@@ -96,32 +157,48 @@ const WEEKDAYS_BY_LOCALE = {
 function getLocationMultiplier(location?: string): number {
     const q = String(location || "").toLowerCase();
     if (!q) return 1;
-    if (q.includes("hanoi") || q.includes("ha noi") || q.includes("ho chi minh") || q.includes("saigon") || q.includes("new york") || q.includes("tokyo")) return 1.2;
+    if (q.includes("new york") || q.includes("united states") || q.includes("usa")) return 4.2;
+    if (q.includes("madrid") || q.includes("spain")) return 3.1;
+    if (q.includes("tokyo") || q.includes("japan")) return 3.4;
+    if (q.includes("hanoi") || q.includes("ha noi") || q.includes("ho chi minh") || q.includes("saigon")) return 1.2;
     if (q.includes("da nang") || q.includes("danang")) return 1.0;
-    return 0.9;
+    return 1;
+}
+
+function detectRegion(location?: string, locale?: string): RegionKey {
+    const q = String(location || "").toLowerCase();
+    if (q.includes("new york") || q.includes("united states") || q.includes("usa")) return "us";
+    if (q.includes("madrid") || q.includes("barcelona") || q.includes("spain")) return "es";
+    if (q.includes("tokyo") || q.includes("osaka") || q.includes("japan")) return "jp";
+    if (q.includes("viet nam") || q.includes("vietnam") || q.includes("hanoi") || q.includes("ha noi") || q.includes("ho chi minh") || q.includes("da nang")) return "vn";
+    if (locale === "vi") return "vn";
+    if (locale === "es") return "es";
+    return "us";
 }
 
 function buildMealPlan(familySize: number, locale: string, location?: string, mealSeed?: number): DailyMeal[] {
     const days = WEEKDAYS_BY_LOCALE[locale as keyof typeof WEEKDAYS_BY_LOCALE] ?? WEEKDAYS_BY_LOCALE.en;
-    const multiplier = getLocationMultiplier(location);
+    const region = detectRegion(location, locale);
+    const menu = REGION_MENUS[region];
+    const multiplier = menu.multiplier;
     const rng = Math.abs(Number(mealSeed ?? Date.now())) % 997;
     return days.map((day, i) => {
-        const bi = (i * 3 + rng) % BREAKFASTS.length;
-        const li = (i * 5 + rng) % LUNCHES.length;
-        const di = (i * 7 + rng) % DINNERS.length;
+        const bi = (i * 3 + rng) % menu.breakfasts.length;
+        const li = (i * 5 + rng) % menu.lunches.length;
+        const di = (i * 7 + rng) % menu.dinners.length;
         const breakfast: MealItem = {
-            name: BREAKFASTS[bi].name,
-            cost: Math.round(BREAKFASTS[bi].unitCost * familySize * multiplier),
-            description: BREAKFASTS[bi].description,
+            name: menu.breakfasts[bi].name,
+            cost: Math.round(menu.breakfasts[bi].unitCost * familySize * multiplier),
+            description: menu.breakfasts[bi].description,
         };
         const lunch: MealItem = {
-            name: LUNCHES[li].name,
-            cost: Math.round(LUNCHES[li].unitCost * familySize * multiplier),
-            description: LUNCHES[li].description,
+            name: menu.lunches[li].name,
+            cost: Math.round(menu.lunches[li].unitCost * familySize * multiplier),
+            description: menu.lunches[li].description,
         };
         const dinner: MealItem = {
-            ...DINNERS[di],
-            cost: Math.round(DINNERS[di].cost * multiplier),
+            ...menu.dinners[di],
+            cost: Math.round(menu.dinners[di].cost * multiplier),
         };
         return {
             day,

@@ -51,7 +51,8 @@ type CacheEntry = {
 };
 
 const RESTCOUNTRIES_FIELDS_URL =
-    "https://restcountries.com/v3.1/all?fields=cca2,ccn3,name,latlng,area,population,region,subregion,capital,timezones,currencies,languages";
+    "https://restcountries.com/v3.1/all?fields=cca2,ccn3,name,latlng,area,population,region,subregion,capital,currencies";
+const COUNTRIES_BACKUP_URL = "https://raw.githubusercontent.com/mledoze/countries/master/countries.json";
 const DEFAULT_FETCH_TIMEOUT_MS = 7000;
 const MAX_DATA_CACHE_ITEMS = 1400;
 
@@ -459,12 +460,87 @@ function computeBudgetStatus(utilization: number) {
     return "healthy";
 }
 
+type AdvisorRegionProfile = {
+    countryCode: string;
+    avgRestaurantMealVnd: number;
+    avgHomeMealPerPersonVnd: number;
+    breakfasts: string[];
+    lunches: string[];
+    dinners: string[];
+    examples: string[];
+};
+
+function detectCountryByLocation(locationText: string) {
+    const q = locationText.toLowerCase();
+    if (!q) return "";
+    if (q.includes("new york") || q.includes("san francisco") || q.includes("los angeles") || q.includes("united states") || q.includes(" usa")) return "US";
+    if (q.includes("viet nam") || q.includes("vietnam") || q.includes("ha noi") || q.includes("hanoi") || q.includes("ho chi minh") || q.includes("da nang") || q.includes("danang")) return "VN";
+    if (q.includes("madrid") || q.includes("barcelona") || q.includes("spain") || q.includes("espan")) return "ES";
+    if (q.includes("tokyo") || q.includes("osaka") || q.includes("japan")) return "JP";
+    if (q.includes("london") || q.includes("united kingdom") || q.includes("uk")) return "GB";
+    return "";
+}
+
+function getAdvisorRegionProfile(locationText: string, locale: string): AdvisorRegionProfile {
+    const country = detectCountryByLocation(locationText) || (locale === "vi" ? "VN" : locale === "es" ? "ES" : "US");
+    if (country === "US") {
+        return {
+            countryCode: "US",
+            avgRestaurantMealVnd: 440000,
+            avgHomeMealPerPersonVnd: 175000,
+            breakfasts: ["Bagel and eggs", "Oatmeal bowl", "Greek yogurt and fruit", "Pancakes and berries", "Egg sandwich"],
+            lunches: ["Chicken salad", "Turkey sandwich", "Burrito bowl", "Pasta lunch set", "Sushi lunch box"],
+            dinners: ["Grilled salmon and rice", "Steak with vegetables", "Chicken rice bowl", "Pasta and meatballs", "Roast chicken and salad"],
+            examples: ["Whole Foods", "Trader Joe's", "Target Grocery"],
+        };
+    }
+    if (country === "ES") {
+        return {
+            countryCode: "ES",
+            avgRestaurantMealVnd: 320000,
+            avgHomeMealPerPersonVnd: 132000,
+            breakfasts: ["Tostada con huevo", "Avena con fruta", "Yogur con granola", "Pan integral y queso"],
+            lunches: ["Paella ligera", "Pollo con arroz", "Ensalada mediterranea", "Pasta con atun"],
+            dinners: ["Pescado al horno", "Tortilla espanola", "Pollo a la plancha", "Sopa y pan integral"],
+            examples: ["Mercadona", "Carrefour", "Lidl"],
+        };
+    }
+    if (country === "JP") {
+        return {
+            countryCode: "JP",
+            avgRestaurantMealVnd: 360000,
+            avgHomeMealPerPersonVnd: 146000,
+            breakfasts: ["Onigiri and miso soup", "Tamago and rice", "Yogurt and fruit", "Tofu and rice set"],
+            lunches: ["Bento chicken", "Ramen set", "Soba with tempura", "Curry rice"],
+            dinners: ["Grilled fish set", "Hotpot", "Chicken teriyaki", "Tofu and vegetable set"],
+            examples: ["AEON", "Seiyu", "7-Eleven"],
+        };
+    }
+    return {
+        countryCode: "VN",
+        avgRestaurantMealVnd: 95000,
+        avgHomeMealPerPersonVnd: 42000,
+        breakfasts: ["Pho bo", "Banh mi trung", "Xoi ga", "Bun bo Hue", "Chao ga"],
+        lunches: ["Com tam suon", "Bun thit nuong", "Mi Quang", "Bun rieu cua", "Com ga"],
+        dinners: ["Com nha nau", "Ca kho canh rau", "Ga nuong dau hu", "Bo xao rau", "Canh chua ca"],
+        examples: ["WinMart", "Co.opmart", "Bach Hoa Xanh"],
+    };
+}
+
+function pickBySeed(list: string[], seed: number, fallback: string) {
+    if (!Array.isArray(list) || list.length === 0) return fallback;
+    const idx = Math.abs(seed) % list.length;
+    return list[idx];
+}
+
 function buildAdvisorFallback(input: Record<string, unknown>) {
     const income = Number(input.income || 0);
     const actualExpenses = Number(input.actual_expenses || 0);
     const plannedBudget = Number(input.planned_budget || 0);
     const familySize = Math.max(1, Number(input.family_size || 1));
     const locale = String(input.locale || "en");
+    const location = String(input.location || "");
+    const region = getAdvisorRegionProfile(location, locale);
     const savings = income - actualExpenses;
     const utilization = plannedBudget > 0 ? (actualExpenses / plannedBudget) * 100 : 0;
     const savingsRate = income > 0 ? (savings / income) * 100 : 0;
@@ -472,16 +548,29 @@ function buildAdvisorFallback(input: Record<string, unknown>) {
     const healthStatus =
         healthScore >= 80 ? "excellent" : healthScore >= 60 ? "good" : healthScore >= 40 ? "needs_improvement" : "critical";
     const days = locale === "vi" ? ["T2", "T3", "T4", "T5", "T6", "T7", "CN"] : locale === "es" ? ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"] : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const seedBase = seededScore(`${location}|${income}|${actualExpenses}|${plannedBudget}|${familySize}|${locale}`);
     const mealPlan = days.map((day, idx) => {
-        const base = 38000 + idx * 1200;
-        const breakfast = Math.round(base * familySize * 0.75);
-        const lunch = Math.round(base * familySize * 1.1);
-        const dinner = Math.round(base * familySize * 1.3);
+        const basePerPerson = Math.round(region.avgHomeMealPerPersonVnd * (0.88 + ((seedBase + idx * 11) % 8) * 0.05));
+        const breakfast = Math.round(basePerPerson * familySize * 0.75);
+        const lunch = Math.round(basePerPerson * familySize * 1.12);
+        const dinner = Math.round(basePerPerson * familySize * 1.34);
         return {
             day,
-            breakfast: { name: locale === "vi" ? "Bua sang" : locale === "es" ? "Desayuno" : "Breakfast", cost: breakfast, description: "" },
-            lunch: { name: locale === "vi" ? "Bua trua" : locale === "es" ? "Almuerzo" : "Lunch", cost: lunch, description: "" },
-            dinner: { name: locale === "vi" ? "Bua toi" : locale === "es" ? "Cena" : "Dinner", cost: dinner, description: "" },
+            breakfast: {
+                name: pickBySeed(region.breakfasts, seedBase + idx * 17, locale === "vi" ? "Bua sang" : locale === "es" ? "Desayuno" : "Breakfast"),
+                cost: breakfast,
+                description: locale === "vi" ? "Khau phan uoc tinh theo khu vuc." : locale === "es" ? "Racion estimada por zona." : "Estimated serving by region.",
+            },
+            lunch: {
+                name: pickBySeed(region.lunches, seedBase + idx * 23, locale === "vi" ? "Bua trua" : locale === "es" ? "Almuerzo" : "Lunch"),
+                cost: lunch,
+                description: locale === "vi" ? "Khau phan uoc tinh theo khu vuc." : locale === "es" ? "Racion estimada por zona." : "Estimated serving by region.",
+            },
+            dinner: {
+                name: pickBySeed(region.dinners, seedBase + idx * 31, locale === "vi" ? "Bua toi" : locale === "es" ? "Cena" : "Dinner"),
+                cost: dinner,
+                description: locale === "vi" ? "Khau phan uoc tinh theo khu vuc." : locale === "es" ? "Racion estimada por zona." : "Estimated serving by region.",
+            },
             snack: null,
             total_cost: breakfast + lunch + dinner,
         };
@@ -503,17 +592,22 @@ function buildAdvisorFallback(input: Record<string, unknown>) {
         meal_plan: mealPlan,
         daily_food_budget: mealPlan.reduce((sum, d) => sum + d.total_cost, 0) / 7,
         food_price_context: {
-            query: String(input.location || ""),
-            resolved_location: String(input.location || ""),
-            country_code: "",
+            query: location,
+            resolved_location: location || (locale === "vi" ? "Khu vuc mac dinh" : locale === "es" ? "Zona por defecto" : "Default region"),
+            country_code: region.countryCode,
             lat: null,
             lon: null,
-            local_price_multiplier: 1,
-            average_restaurant_meal_vnd: 95000,
-            estimated_home_meal_per_person_vnd: 42000,
+            local_price_multiplier: Number((region.avgHomeMealPerPersonVnd / 42000).toFixed(2)),
+            average_restaurant_meal_vnd: region.avgRestaurantMealVnd,
+            estimated_home_meal_per_person_vnd: region.avgHomeMealPerPersonVnd,
             nearby_restaurants: 0,
-            nearby_examples: [],
-            note: locale === "vi" ? "Che do vercel-only." : locale === "es" ? "Modo vercel-only." : "Vercel-only mode.",
+            nearby_examples: region.examples,
+            note:
+                locale === "vi"
+                    ? "Du lieu local theo khu vuc uoc tinh."
+                    : locale === "es"
+                      ? "Datos locales estimados por region."
+                      : "Local region-based estimate.",
         },
         asset_allocation: [
             { category: "Stocks / ETF", percentage: 40, amount: Math.max(0, savings * 0.4), rationale: "Growth" },
@@ -528,111 +622,128 @@ function buildAdvisorFallback(input: Record<string, unknown>) {
     };
 }
 
+function toCountryRow(c: Record<string, unknown>): CountryRow | null {
+    const cca2 = String(c.cca2 || "").toUpperCase();
+    if (!cca2 || cca2.length !== 2) return null;
+    const latlng = Array.isArray(c.latlng) ? c.latlng : [];
+    const lat = Number(latlng[0] || 0);
+    const lng = Number(latlng[1] || 0);
+    const nameObj = (c.name || {}) as Record<string, unknown>;
+    const currenciesObj = (c.currencies || {}) as Record<string, unknown>;
+    const languagesObj = (c.languages || {}) as Record<string, unknown>;
+    const score = seededScore(cca2);
+    const ai_signal = score % 3 === 0 ? "bullish" : score % 3 === 1 ? "neutral" : "cautious";
+    return {
+        code: cca2,
+        numeric_code: String(c.ccn3 || ""),
+        name: String(nameObj.common || cca2),
+        official_name: String(nameObj.official || nameObj.common || cca2),
+        lat,
+        lng,
+        area_km2: Number(c.area || 0),
+        population: Number(c.population || 0),
+        region: String(c.region || ""),
+        subregion: String(c.subregion || ""),
+        capital: Array.isArray(c.capital) ? String(c.capital[0] || "") : "",
+        timezones: Array.isArray(c.timezones) ? c.timezones.map((v) => String(v)) : [],
+        currencies: Object.keys(currenciesObj),
+        languages: Object.values(languagesObj).map((v) => String(v)),
+        btc_holding: Math.round((Number(c.population || 0) / 1000000) * (10 + (score % 80))),
+        fx_forecast_factor: Number((0.9 + (score % 40) / 100).toFixed(4)),
+        real_estate_potential_pct: Number((3 + (score % 120) / 10).toFixed(2)),
+        ai_signal,
+    } as CountryRow;
+}
+
 async function getCountries() {
     if (globalThis.__nexus_countries && globalThis.__nexus_countries.length > 0) {
         return globalThis.__nexus_countries;
     }
     let rows: CountryRow[] = [];
     try {
-        const payload = await fetchJson(RESTCOUNTRIES_FIELDS_URL);
-        rows = (Array.isArray(payload) ? payload : [])
-            .map((c: Record<string, unknown>) => {
-                const cca2 = String(c.cca2 || "").toUpperCase();
-                if (!cca2 || cca2.length !== 2) return null;
-                const latlng = Array.isArray(c.latlng) ? c.latlng : [];
-                const lat = Number(latlng[0] || 0);
-                const lng = Number(latlng[1] || 0);
-                const nameObj = (c.name || {}) as Record<string, unknown>;
-                const currenciesObj = (c.currencies || {}) as Record<string, unknown>;
-                const languagesObj = (c.languages || {}) as Record<string, unknown>;
-                const score = seededScore(cca2);
-                const ai_signal = score % 3 === 0 ? "bullish" : score % 3 === 1 ? "neutral" : "cautious";
-                return {
-                    code: cca2,
-                    numeric_code: String(c.ccn3 || ""),
-                    name: String(nameObj.common || cca2),
-                    official_name: String(nameObj.official || nameObj.common || cca2),
-                    lat,
-                    lng,
-                    area_km2: Number(c.area || 0),
-                    population: Number(c.population || 0),
-                    region: String(c.region || ""),
-                    subregion: String(c.subregion || ""),
-                    capital: Array.isArray(c.capital) ? String(c.capital[0] || "") : "",
-                    timezones: Array.isArray(c.timezones) ? c.timezones.map((v) => String(v)) : [],
-                    currencies: Object.keys(currenciesObj),
-                    languages: Object.values(languagesObj).map((v) => String(v)),
-                    btc_holding: Math.round((Number(c.population || 0) / 1000000) * (10 + (score % 80))),
-                    fx_forecast_factor: Number((0.9 + (score % 40) / 100).toFixed(4)),
-                    real_estate_potential_pct: Number((3 + (score % 120) / 10).toFixed(2)),
-                    ai_signal,
-                } as CountryRow;
-            })
-            .filter(Boolean) as CountryRow[];
+        const payload = await fetchJson(
+            RESTCOUNTRIES_FIELDS_URL,
+            { headers: { "User-Agent": "NexusFinance/1.0 (+github.com/vusinhthanh1892007-boop/finace-nexus)" } },
+            9000,
+        );
+        rows = (Array.isArray(payload) ? payload : []).map((c: Record<string, unknown>) => toCountryRow(c)).filter(Boolean) as CountryRow[];
+        if (rows.length < 180) {
+            throw new Error("restcountries_payload_too_small");
+        }
     } catch {
-        rows = [
-            {
-                code: "US",
-                numeric_code: "840",
-                name: "United States",
-                official_name: "United States of America",
-                lat: 38,
-                lng: -97,
-                area_km2: 9833517,
-                population: 335000000,
-                region: "Americas",
-                subregion: "North America",
-                capital: "Washington, D.C.",
-                timezones: ["UTC-05:00"],
-                currencies: ["USD"],
-                languages: ["English"],
-                btc_holding: 4800,
-                fx_forecast_factor: 1.02,
-                real_estate_potential_pct: 6.4,
-                ai_signal: "neutral",
-            },
-            {
-                code: "VN",
-                numeric_code: "704",
-                name: "Vietnam",
-                official_name: "Socialist Republic of Vietnam",
-                lat: 16.3,
-                lng: 107.8,
-                area_km2: 331212,
-                population: 100300000,
-                region: "Asia",
-                subregion: "South-Eastern Asia",
-                capital: "Hanoi",
-                timezones: ["UTC+07:00"],
-                currencies: ["VND"],
-                languages: ["Vietnamese"],
-                btc_holding: 1200,
-                fx_forecast_factor: 1.08,
-                real_estate_potential_pct: 8.1,
-                ai_signal: "bullish",
-            },
-            {
-                code: "JP",
-                numeric_code: "392",
-                name: "Japan",
-                official_name: "Japan",
-                lat: 36.2,
-                lng: 138.2,
-                area_km2: 377975,
-                population: 124000000,
-                region: "Asia",
-                subregion: "Eastern Asia",
-                capital: "Tokyo",
-                timezones: ["UTC+09:00"],
-                currencies: ["JPY"],
-                languages: ["Japanese"],
-                btc_holding: 980,
-                fx_forecast_factor: 0.98,
-                real_estate_potential_pct: 5.3,
-                ai_signal: "cautious",
-            },
-        ];
+        try {
+            const backupPayload = await fetchJson(COUNTRIES_BACKUP_URL, undefined, 10000);
+            rows = (Array.isArray(backupPayload) ? backupPayload : [])
+                .map((c: Record<string, unknown>) => toCountryRow(c))
+                .filter(Boolean) as CountryRow[];
+        } catch {
+            rows = [
+                {
+                    code: "US",
+                    numeric_code: "840",
+                    name: "United States",
+                    official_name: "United States of America",
+                    lat: 38,
+                    lng: -97,
+                    area_km2: 9833517,
+                    population: 335000000,
+                    region: "Americas",
+                    subregion: "North America",
+                    capital: "Washington, D.C.",
+                    timezones: ["UTC-05:00"],
+                    currencies: ["USD"],
+                    languages: ["English"],
+                    btc_holding: 4800,
+                    fx_forecast_factor: 1.02,
+                    real_estate_potential_pct: 6.4,
+                    ai_signal: "neutral",
+                },
+                {
+                    code: "VN",
+                    numeric_code: "704",
+                    name: "Vietnam",
+                    official_name: "Socialist Republic of Vietnam",
+                    lat: 16.3,
+                    lng: 107.8,
+                    area_km2: 331212,
+                    population: 100300000,
+                    region: "Asia",
+                    subregion: "South-Eastern Asia",
+                    capital: "Hanoi",
+                    timezones: ["UTC+07:00"],
+                    currencies: ["VND"],
+                    languages: ["Vietnamese"],
+                    btc_holding: 1200,
+                    fx_forecast_factor: 1.08,
+                    real_estate_potential_pct: 8.1,
+                    ai_signal: "bullish",
+                },
+                {
+                    code: "JP",
+                    numeric_code: "392",
+                    name: "Japan",
+                    official_name: "Japan",
+                    lat: 36.2,
+                    lng: 138.2,
+                    area_km2: 377975,
+                    population: 124000000,
+                    region: "Asia",
+                    subregion: "Eastern Asia",
+                    capital: "Tokyo",
+                    timezones: ["UTC+09:00"],
+                    currencies: ["JPY"],
+                    languages: ["Japanese"],
+                    btc_holding: 980,
+                    fx_forecast_factor: 0.98,
+                    real_estate_potential_pct: 5.3,
+                    ai_signal: "cautious",
+                },
+            ];
+        }
     }
+    rows = rows
+        .filter((row) => row.code.length === 2)
+        .sort((a, b) => a.name.localeCompare(b.name));
     globalThis.__nexus_countries = rows;
     return rows;
 }
@@ -856,7 +967,15 @@ async function handleGet(slug: string[], req: NextRequest) {
 
     if (slug[0] === "market" && slug[1] === "countries" && slug.length === 2) {
         const countries = await getCountries();
-        return jsonWithCache({ countries, updated_at: nowIso() }, 900, 3600);
+        return jsonWithCache(
+            {
+                countries,
+                updated_at: nowIso(),
+                source: countries.length > 180 ? "restcountries_or_backup" : countries.length > 10 ? "partial" : "limited_fallback",
+            },
+            900,
+            3600,
+        );
     }
 
     if (slug[0] === "market" && slug[1] === "countries" && slug[2]) {
