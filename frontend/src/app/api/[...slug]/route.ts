@@ -332,7 +332,7 @@ async function getBinanceTicker(pair: string) {
         4000,
         async () => {
             const raw = await fetchJson(
-                `https://api.binance.com/api/v3/ticker/24hr?symbol=${encodeURIComponent(normalizedPair)}`,
+                `https://data-api.binance.vision/api/v3/ticker/24hr?symbol=${encodeURIComponent(normalizedPair)}`,
                 undefined,
                 4500,
             );
@@ -505,19 +505,19 @@ async function getCandles(symbol: string, interval: string, limit: number) {
             ttlForCandle(klineInterval),
             async () => {
                 const rows = await fetchJson(
-                    `https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(pair)}&interval=${encodeURIComponent(klineInterval)}&limit=${safeLimit}`,
+                    `https://data-api.binance.vision/api/v3/klines?symbol=${encodeURIComponent(pair)}&interval=${encodeURIComponent(klineInterval)}&limit=${safeLimit}`,
                     undefined,
                     6000,
                 );
                 const candles = Array.isArray(rows)
                     ? rows.map((row: unknown[]) => ({
-                          time: Number(row[0] || 0),
-                          open: Number(row[1] || 0),
-                          high: Number(row[2] || 0),
-                          low: Number(row[3] || 0),
-                          close: Number(row[4] || 0),
-                          volume: Number(row[5] || 0),
-                      }))
+                        time: Number(row[0] || 0),
+                        open: Number(row[1] || 0),
+                        high: Number(row[2] || 0),
+                        low: Number(row[3] || 0),
+                        close: Number(row[4] || 0),
+                        volume: Number(row[5] || 0),
+                    }))
                     : [];
                 return {
                     symbol: s,
@@ -687,8 +687,8 @@ function buildAdvisorFallback(input: Record<string, unknown>) {
         locale === "vi"
             ? ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
             : locale === "es"
-              ? ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
-              : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+                ? ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+                : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     const seedBase = seededScore(`${location}|${income}|${actualExpenses}|${plannedBudget}|${familySize}|${locale}`);
     const mealPlan = days.map((day, idx) => {
         const basePerPerson = Math.round(region.avgHomeMealPerPersonVnd * (0.88 + ((seedBase + idx * 11) % 8) * 0.05));
@@ -723,8 +723,8 @@ function buildAdvisorFallback(input: Record<string, unknown>) {
             locale === "vi"
                 ? `Điểm ${healthScore}/100. Tỷ lệ tiết kiệm ${savingsRate.toFixed(1)}%.`
                 : locale === "es"
-                  ? `Puntaje ${healthScore}/100. Ahorro ${savingsRate.toFixed(1)}%.`
-                  : `Score ${healthScore}/100. Savings ${savingsRate.toFixed(1)}%.`,
+                    ? `Puntaje ${healthScore}/100. Ahorro ${savingsRate.toFixed(1)}%.`
+                    : `Score ${healthScore}/100. Savings ${savingsRate.toFixed(1)}%.`,
         guru_advice: [
             locale === "vi" ? "Giữ chi tiêu dưới ngân sách." : locale === "es" ? "Mantener gasto bajo presupuesto." : "Keep spending under budget.",
             locale === "vi" ? "Tăng tỷ lệ tiết kiệm theo tháng." : locale === "es" ? "Aumentar tasa de ahorro mensual." : "Increase monthly savings rate.",
@@ -747,8 +747,8 @@ function buildAdvisorFallback(input: Record<string, unknown>) {
                 locale === "vi"
                     ? "Dữ liệu địa phương ước tính theo khu vực."
                     : locale === "es"
-                      ? "Datos locales estimados por región."
-                      : "Local region-based estimate.",
+                        ? "Datos locales estimados por región."
+                        : "Local region-based estimate.",
         },
         asset_allocation: [
             { category: "Stocks / ETF", percentage: 40, amount: Math.max(0, savings * 0.4), rationale: "Growth" },
@@ -1017,7 +1017,7 @@ async function handleGet(slug: string[], req: NextRequest) {
         const raw = await withCache(
             cacheKey,
             3500,
-            () => fetchJson(`https://api.binance.com/api/v3/depth?symbol=${encodeURIComponent(slug[3])}&limit=${limit}`, undefined, 5000),
+            () => fetchJson(`https://data-api.binance.vision/api/v3/depth?symbol=${encodeURIComponent(slug[3])}&limit=${limit}`, undefined, 5000),
             14000,
         );
         const toLevel = (row: unknown[]) => ({ price: Number(row?.[0] || 0), quantity: Number(row?.[1] || 0) });
@@ -1039,7 +1039,7 @@ async function handleGet(slug: string[], req: NextRequest) {
         const raw = await withCache(
             `binance:trades:${slug[3]}:${limit}`,
             3500,
-            () => fetchJson(`https://api.binance.com/api/v3/trades?symbol=${encodeURIComponent(slug[3])}&limit=${limit}`, undefined, 5000),
+            () => fetchJson(`https://data-api.binance.vision/api/v3/trades?symbol=${encodeURIComponent(slug[3])}&limit=${limit}`, undefined, 5000),
             12000,
         );
         return jsonWithCache(
@@ -1047,13 +1047,13 @@ async function handleGet(slug: string[], req: NextRequest) {
                 symbol: slug[3],
                 trades: Array.isArray(raw)
                     ? raw.map((t: Record<string, unknown>) => ({
-                          id: Number(t.id || 0),
-                          price: Number(t.price || 0),
-                          quantity: Number(t.qty || 0),
-                          quote_quantity: Number(t.quoteQty || 0),
-                          time: Number(t.time || 0),
-                          is_buyer_maker: Boolean(t.isBuyerMaker),
-                      }))
+                        id: Number(t.id || 0),
+                        price: Number(t.price || 0),
+                        quantity: Number(t.qty || 0),
+                        quote_quantity: Number(t.quoteQty || 0),
+                        time: Number(t.time || 0),
+                        is_buyer_maker: Boolean(t.isBuyerMaker),
+                    }))
                     : [],
                 updated_at: nowIso(),
             },
@@ -1244,14 +1244,14 @@ async function handleGet(slug: string[], req: NextRequest) {
                 );
                 const places = Array.isArray(overpass?.elements)
                     ? overpass.elements.map((el: Record<string, unknown>) => {
-                          const name = String((el.tags as Record<string, unknown> | undefined)?.name || `${category}`);
-                          const elLat = Number(el.lat || lat);
-                          const elLon = Number(el.lon || lon);
-                          const dx = (elLat - lat) * 111;
-                          const dy = (elLon - lon) * 111;
-                          const distance = Math.sqrt(dx * dx + dy * dy);
-                          return { name, distance_km: Number(distance.toFixed(2)), opening_hours: "Unknown" };
-                      })
+                        const name = String((el.tags as Record<string, unknown> | undefined)?.name || `${category}`);
+                        const elLat = Number(el.lat || lat);
+                        const elLon = Number(el.lon || lon);
+                        const dx = (elLat - lat) * 111;
+                        const dy = (elLon - lon) * 111;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        return { name, distance_km: Number(distance.toFixed(2)), opening_hours: "Unknown" };
+                    })
                     : [];
                 return { query, category, places: places.slice(0, 12) };
             },
@@ -1356,10 +1356,10 @@ async function handlePost(slug: string[], req: NextRequest) {
             status === "healthy"
                 ? "Budget is healthy."
                 : status === "warning"
-                  ? "Budget utilization is rising."
-                  : status === "critical"
-                    ? "High budget utilization."
-                    : "You are over budget.";
+                    ? "Budget utilization is rising."
+                    : status === "critical"
+                        ? "High budget utilization."
+                        : "You are over budget.";
         return NextResponse.json({
             safe_to_spend: safe,
             budget_utilization: Number(utilization.toFixed(2)),
@@ -1387,8 +1387,8 @@ async function handlePost(slug: string[], req: NextRequest) {
                 ? state.gemini_api_key
                     ? "gemini"
                     : state.openai_api_key
-                      ? "openai"
-                      : "gemini"
+                        ? "openai"
+                        : "gemini"
                 : requestedProvider;
         const model = String(body.model || state.ai_model || (provider === "gemini" ? "gemini-2.0-flash" : "gpt-4o-mini"));
 
@@ -1417,8 +1417,8 @@ async function handlePost(slug: string[], req: NextRequest) {
                         locale === "vi"
                             ? "Gemini loi hoac het quota. Kiem tra API key."
                             : locale === "es"
-                              ? "Gemini fallo o sin cuota. Revisa API key."
-                              : "Gemini failed or quota exceeded. Check API key.",
+                                ? "Gemini fallo o sin cuota. Revisa API key."
+                                : "Gemini failed or quota exceeded. Check API key.",
                 }, { headers: { "Cache-Control": "no-store" } });
             }
         }
@@ -1449,8 +1449,8 @@ async function handlePost(slug: string[], req: NextRequest) {
                         locale === "vi"
                             ? "OpenAI loi hoac het quota. Kiem tra API key."
                             : locale === "es"
-                              ? "OpenAI fallo o sin cuota. Revisa API key."
-                              : "OpenAI failed or quota exceeded. Check API key.",
+                                ? "OpenAI fallo o sin cuota. Revisa API key."
+                                : "OpenAI failed or quota exceeded. Check API key.",
                 }, { headers: { "Cache-Control": "no-store" } });
             }
         }
@@ -1462,8 +1462,8 @@ async function handlePost(slug: string[], req: NextRequest) {
                 locale === "vi"
                     ? "Che do demo: nhap API key trong Settings de chat voi AI that."
                     : locale === "es"
-                      ? "Modo demo: agrega API key en Settings para chat IA real."
-                      : "Demo mode: add API key in Settings for real AI chat.",
+                        ? "Modo demo: agrega API key en Settings para chat IA real."
+                        : "Demo mode: add API key in Settings for real AI chat.",
         }, { headers: { "Cache-Control": "no-store" } });
     }
 
