@@ -2,7 +2,6 @@
 
 import { useTranslations } from "next-intl";
 import FinancialLedger from "@/components/dashboard/FinancialLedger";
-import ProductDashboardShowcase from "@/components/dashboard/ProductDashboardShowcase";
 
 export default function DashboardPage() {
     const t = useTranslations("dashboard");
@@ -14,10 +13,6 @@ export default function DashboardPage() {
                     {t("title")}
                 </h1>
                 <p style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}>{t("subtitle")}</p>
-            </div>
-
-            <div style={{ marginBottom: 24 }}>
-                <ProductDashboardShowcase />
             </div>
 
             <FinancialLedger />

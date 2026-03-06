@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
     RiExchangeDollarLine,
-    RiNotification3Line,
     RiRefreshLine,
     RiSearch2Line,
     RiSparklingLine,
@@ -17,12 +16,6 @@ import LocaleSwitcher from "@/components/ui/LocaleSwitcher";
 
 const AIAssistantPanel = dynamic(() => import("./AIAssistantPanel"), { ssr: false });
 
-type Notice = {
-    id: string;
-    message: string;
-    time: string;
-};
-
 type QuickItem = {
     label: string;
     href: string;
@@ -32,7 +25,6 @@ export default function TaskbarActions() {
     const locale = useLocale();
     const router = useRouter();
 
-    const [showNotifications, setShowNotifications] = useState(false);
     const [showSearch, setShowSearch] = useState(false);
     const [showQuickActions, setShowQuickActions] = useState(false);
     const [searchValue, setSearchValue] = useState("");
@@ -43,11 +35,9 @@ export default function TaskbarActions() {
     const labels = {
         vi: {
             quickSearch: "Tìm nhanh",
-            notifications: "Thông báo",
             ai: "AI",
             refresh: "Làm mới",
             searchPlaceholder: "Tìm mã, thị trường, chiến lược...",
-            noNoti: "Không có thông báo mới.",
             quickOpen: "Mở nhanh",
             openTrading: "Mở giao dịch",
             noResult: "Không thấy kết quả phù hợp.",
@@ -58,11 +48,6 @@ export default function TaskbarActions() {
             topup: "Top up",
             freeze: "Freeze card",
             profileRole: "Fintech Product",
-            notices: [
-                { id: "1", message: "SPX đang tiến sát vùng kháng cự 6,900.", time: "2p" },
-                { id: "2", message: "BTC biến động mạnh hơn 3% trong 1h.", time: "8p" },
-                { id: "3", message: "Danh mục cần tái cân bằng theo mức rủi ro.", time: "12p" },
-            ],
             shortcuts: [
                 { label: "Bảng điều khiển", href: `/${locale}/dashboard` },
                 { label: "Bản đồ toàn cầu", href: `/${locale}/dashboard/global-map` },
@@ -74,11 +59,9 @@ export default function TaskbarActions() {
         },
         en: {
             quickSearch: "Quick Search",
-            notifications: "Notifications",
             ai: "AI",
             refresh: "Refresh",
             searchPlaceholder: "Search symbols, markets, strategies...",
-            noNoti: "No new notifications.",
             quickOpen: "Quick open",
             openTrading: "Open trading",
             noResult: "No matching result.",
@@ -89,11 +72,6 @@ export default function TaskbarActions() {
             topup: "Top up",
             freeze: "Freeze card",
             profileRole: "Fintech Product",
-            notices: [
-                { id: "1", message: "SPX is approaching the 6,900 resistance zone.", time: "2m" },
-                { id: "2", message: "BTC moved more than 3% in the last hour.", time: "8m" },
-                { id: "3", message: "Portfolio rebalancing is recommended for current risk.", time: "12m" },
-            ],
             shortcuts: [
                 { label: "Dashboard", href: `/${locale}/dashboard` },
                 { label: "Global Map", href: `/${locale}/dashboard/global-map` },
@@ -105,11 +83,9 @@ export default function TaskbarActions() {
         },
         es: {
             quickSearch: "Busqueda rapida",
-            notifications: "Notificaciones",
             ai: "AI",
             refresh: "Actualizar",
             searchPlaceholder: "Buscar simbolos, mercados, estrategias...",
-            noNoti: "No hay notificaciones nuevas.",
             quickOpen: "Acceso rapido",
             openTrading: "Abrir trading",
             noResult: "Sin resultados.",
@@ -120,11 +96,6 @@ export default function TaskbarActions() {
             topup: "Top up",
             freeze: "Freeze card",
             profileRole: "Fintech Product",
-            notices: [
-                { id: "1", message: "SPX se acerca a la zona de resistencia 6,900.", time: "2m" },
-                { id: "2", message: "BTC se movio mas del 3% en la ultima hora.", time: "8m" },
-                { id: "3", message: "Se recomienda rebalancear la cartera por riesgo.", time: "12m" },
-            ],
             shortcuts: [
                 { label: "Panel", href: `/${locale}/dashboard` },
                 { label: "Mapa Global", href: `/${locale}/dashboard/global-map` },
@@ -137,10 +108,6 @@ export default function TaskbarActions() {
     } as const;
 
     const t = labels[locale as keyof typeof labels] ?? labels.en;
-
-    const notices = useMemo<Notice[]>(() => t.notices.map((item) => ({ ...item })), [t]);
-
-    const unread = notices.length;
 
     const filteredShortcuts = useMemo(() => {
         const q = searchValue.trim().toLowerCase();
@@ -300,30 +267,6 @@ export default function TaskbarActions() {
                 <button className="btn" title={t.refresh} onClick={() => router.refresh()}>
                     <RiRefreshLine size={15} />
                 </button>
-
-                <button className="btn" title={t.notifications} onClick={() => setShowNotifications((v) => !v)} style={{ position: "relative" }}>
-                    <RiNotification3Line size={16} />
-                    {unread > 0 && (
-                        <span style={{ position: "absolute", top: 5, right: 5, width: 7, height: 7, borderRadius: "50%", background: "#ef4444" }} />
-                    )}
-                </button>
-
-                {showNotifications && (
-                    <div className="card" style={{ position: "absolute", top: 44, right: 0, width: 300, padding: 10, zIndex: 30 }}>
-                        {notices.length === 0 ? (
-                            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{t.noNoti}</div>
-                        ) : (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                                {notices.map((n) => (
-                                    <div key={n.id} style={{ padding: 8, borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-hover)" }}>
-                                        <div style={{ fontSize: "0.82rem", fontWeight: 600 }}>{n.message}</div>
-                                        <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: 2 }}>{n.time}</div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
 
                 <div className="card" style={{ padding: "6px 10px", display: "flex", alignItems: "center", gap: 8 }}>
                     <RiUser3Line size={16} />
