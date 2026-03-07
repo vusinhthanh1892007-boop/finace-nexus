@@ -5,7 +5,6 @@ import { useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
-    RiExchangeDollarLine,
     RiRefreshLine,
     RiSearch2Line,
     RiSparklingLine,
@@ -26,7 +25,6 @@ export default function TaskbarActions() {
     const router = useRouter();
 
     const [showSearch, setShowSearch] = useState(false);
-    const [showQuickActions, setShowQuickActions] = useState(false);
     const [searchValue, setSearchValue] = useState("");
     const [showAI, setShowAI] = useState(false);
     const [quoteResult, setQuoteResult] = useState<{ symbol: string; price: number; change_percent: number } | null>(null);
@@ -42,11 +40,6 @@ export default function TaskbarActions() {
             openTrading: "Mở giao dịch",
             noResult: "Không thấy kết quả phù hợp.",
             go: "Tìm",
-            quickActions: "Tac vu nhanh",
-            transfer: "Transfer",
-            receive: "Receive",
-            topup: "Top up",
-            freeze: "Freeze card",
             profileRole: "Fintech Product",
             shortcuts: [
                 { label: "Bảng điều khiển", href: `/${locale}/dashboard` },
@@ -66,11 +59,6 @@ export default function TaskbarActions() {
             openTrading: "Open trading",
             noResult: "No matching result.",
             go: "Go",
-            quickActions: "Quick Actions",
-            transfer: "Transfer",
-            receive: "Receive",
-            topup: "Top up",
-            freeze: "Freeze card",
             profileRole: "Fintech Product",
             shortcuts: [
                 { label: "Dashboard", href: `/${locale}/dashboard` },
@@ -90,11 +78,6 @@ export default function TaskbarActions() {
             openTrading: "Abrir trading",
             noResult: "Sin resultados.",
             go: "Buscar",
-            quickActions: "Acciones Rapidas",
-            transfer: "Transfer",
-            receive: "Receive",
-            topup: "Top up",
-            freeze: "Freeze card",
             profileRole: "Fintech Product",
             shortcuts: [
                 { label: "Panel", href: `/${locale}/dashboard` },
@@ -118,11 +101,6 @@ export default function TaskbarActions() {
     const openTrading = (symbol: string) => {
         router.push(`/${locale}/dashboard/trading?symbol=${encodeURIComponent(symbol)}`);
         setShowSearch(false);
-    };
-
-    const runTaskAction = (action: "transfer" | "receive" | "topup" | "freeze") => {
-        router.push(`/${locale}/dashboard?action=${action}`);
-        setShowQuickActions(false);
     };
 
     const runQuickSearch = async () => {
@@ -248,21 +226,6 @@ export default function TaskbarActions() {
                 <button className="btn" onClick={() => setShowAI(true)} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                     <RiSparklingLine size={15} /> {t.ai}
                 </button>
-
-                <button className="btn" onClick={() => setShowQuickActions((v) => !v)} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <RiExchangeDollarLine size={15} /> {t.quickActions}
-                </button>
-
-                {showQuickActions && (
-                    <div className="card" style={{ position: "absolute", top: 44, right: 140, width: 240, padding: 10, zIndex: 32 }}>
-                        <div style={{ display: "grid", gap: 6 }}>
-                            <button className="btn btn-secondary" style={{ justifyContent: "flex-start" }} onClick={() => runTaskAction("transfer")}>{t.transfer}</button>
-                            <button className="btn btn-secondary" style={{ justifyContent: "flex-start" }} onClick={() => runTaskAction("receive")}>{t.receive}</button>
-                            <button className="btn btn-secondary" style={{ justifyContent: "flex-start" }} onClick={() => runTaskAction("topup")}>{t.topup}</button>
-                            <button className="btn btn-secondary" style={{ justifyContent: "flex-start" }} onClick={() => runTaskAction("freeze")}>{t.freeze}</button>
-                        </div>
-                    </div>
-                )}
 
                 <button className="btn" title={t.refresh} onClick={() => router.refresh()}>
                     <RiRefreshLine size={15} />
